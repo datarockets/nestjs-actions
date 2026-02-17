@@ -8,9 +8,19 @@ import { singularize } from './singularize';
 
 type ActionModule = Record<string, any>;
 
+interface RouteOptions {
+  to: ActionModule;
+}
+
+interface ResourcesOptions {
+  to?: ActionModule;
+  param?: string;
+}
+
 interface RouteNode {
   type: 'path' | 'resources';
   path: string;
+  param?: string;
   module?: ActionModule;
   children?: RouteNode[];
 }
@@ -90,24 +100,30 @@ function createControllerForAction(
 
 function routePath(
   path: string,
-  moduleOrChildren?: ActionModule | RouteNode[],
+  optionsOrChildren?: RouteOptions | RouteNode[],
   children?: RouteNode[],
 ): RouteNode {
-  if (Array.isArray(moduleOrChildren)) {
-    return { type: 'path', path, children: moduleOrChildren };
+  if (Array.isArray(optionsOrChildren)) {
+    return { type: 'path', path, children: optionsOrChildren };
   }
-  return { type: 'path', path, module: moduleOrChildren, children };
+  return { type: 'path', path, module: optionsOrChildren?.to, children };
 }
 
 function routeResources(
   path: string,
-  moduleOrChildren?: ActionModule | RouteNode[],
+  optionsOrChildren?: ResourcesOptions | RouteNode[],
   children?: RouteNode[],
 ): RouteNode {
-  if (Array.isArray(moduleOrChildren)) {
-    return { type: 'resources', path, children: moduleOrChildren };
+  if (Array.isArray(optionsOrChildren)) {
+    return { type: 'resources', path, children: optionsOrChildren };
   }
-  return { type: 'resources', path, module: moduleOrChildren, children };
+  return {
+    type: 'resources',
+    path,
+    param: optionsOrChildren?.param,
+    module: optionsOrChildren?.to,
+    children,
+  };
 }
 
 function create(routes: RouteNode[], actionsMap?: ActionModule) {
@@ -137,7 +153,10 @@ function create(routes: RouteNode[], actionsMap?: ActionModule) {
       if (node.children) {
         let childBasePath = fullPath;
         if (node.type === 'resources') {
-          childBasePath = `${fullPath}/:${singularize(node.path)}_id`;
+          const paramName = node.param
+            ? `${singularize(node.path)}${node.param[0].toUpperCase()}${node.param.slice(1)}`
+            : `${singularize(node.path)}Id`;
+          childBasePath = `${fullPath}/:${paramName}`;
         }
         processRoutes(node.children, childBasePath, resolvedModule);
       }

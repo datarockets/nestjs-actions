@@ -6,13 +6,13 @@ An Action is a class that is respoinsible for handling HTTP requests in Nest.js 
 
 ```ts
 // src/api/actions/hello.action.ts
-import { Action, BaseAction } from "src/lib/actions";
+import { Action, BaseAction } from 'src/lib/actions';
 
 @Action({})
 export class HelloAction extends BaseAction {
   async exec() {
     return {
-      hello: "world!",
+      hello: 'world!',
     };
   }
 }
@@ -22,12 +22,12 @@ Action class gets instantiated on every request and there are `request`, `respon
 
 ```ts
 @Action({
-  path: ":name",
+  path: ':name',
 })
 export class HelloAction extends BaseAction {
   async exec() {
     return {
-      hello: this.params["name"],
+      hello: this.params['name'],
     };
   }
 }
@@ -37,13 +37,13 @@ It is possible to use `response` to change response status code:
 
 ```ts
 @Action({
-  method: "POST",
+  method: 'POST',
 })
 export class CreateAction extends BaseAction {
   async exec() {
     this.response.status(201);
     return {
-      hello: this.body["name"],
+      hello: this.body['name'],
     };
   }
 }
@@ -52,17 +52,17 @@ export class CreateAction extends BaseAction {
 However, unless you need to do advanced things like streaming, it is encouraged to use a Response object:
 
 ```ts
-import { Action, BaseAction, Response } from "src/lib/actions";
+import { Action, BaseAction, Response } from 'src/lib/actions';
 
 @Action({
-  method: "POST",
+  method: 'POST',
 })
 export class CreateAction extends BaseAction {
   async exec() {
     return new Response({
       status: 201,
       body: {
-        hello: this.body["name"],
+        hello: this.body['name'],
       },
     });
   }
@@ -73,15 +73,15 @@ export class CreateAction extends BaseAction {
 
 ```ts
 // src/api/api.module.ts
-import { router } from "src/lib/actions";
-import { HelloAction } from "./actions/hello/hello.action";
-import { CreateAction } from "./actions/hello/create.action";
+import { router } from 'src/lib/actions';
+import { HelloAction } from './actions/hello/hello.action';
+import { CreateAction } from './actions/hello/create.action';
 
 @Module({
   controllers: router
     .create([
-      router.path("hello", HelloAction),
-      router.path("hello", CreateAction),
+      router.path('hello', HelloAction),
+      router.path('hello', CreateAction),
     ])
     .controllers(),
 })
@@ -104,17 +104,17 @@ src/api/
 */
 
 // src/api/actions/hello/index.ts
-export * from "./hello.action";
-export * from "./create.action";
+export * from './hello.action';
+export * from './create.action';
 
 // src/api/actions/index.ts
-export * as hello from "./hello";
+export * as hello from './hello';
 ```
 
 ```ts
-import * as actions from "./actions";
+import * as actions from './actions';
 
-router.create([router.path("hello", actions.hello)]);
+router.create([router.path('hello', actions.hello)]);
 ```
 
 ### Resourceful routing
@@ -145,11 +145,11 @@ src/api/
 
 ```ts
 router.create([
-  router.resources("threads", actions.threads, [
-    router.resources("messages", actions.threads.messages),
+  router.resources('threads', { to: actions.threads }, [
+    router.resources('messages', { to: actions.threads.messages }),
   ]),
-  router.path("settings", actions.settings, [
-    router.path("billing", actions.settings.billing),
+  router.path('settings', { to: actions.settings }, [
+    router.path('billing', { to: actions.settings.billing }),
   ]),
 ]);
 ```
@@ -168,6 +168,26 @@ GET    /settings
 PATCH  /settings
 PATCH  /settings/billing
 ```
+
+### Custom parameter names
+
+By default, nested resources use the singularized resource name followed by `Id` for the parameter (e.g., `:threadId`). You can customize this with the `param` option:
+
+```ts
+router.resources("workspaces", { param: "slug" }, [
+  router.resources("threads"),
+]);
+```
+
+This would produce routes like:
+
+```
+GET    /workspaces/:workspaceSlug/threads
+```
+
+Instead of the default `/workspaces/:workspaceId/threads`.
+
+### Auto-traversal
 
 We can let router to traverse the `actions` object:
 
@@ -189,30 +209,30 @@ router.create(
 `router` would try to traverse `actions` by accessing keys equal to path:
 
 ```ts
-actions["threads"];
-actions["threads"]["messages"];
-actions["settings"];
-actions["settings"]["billing"];
+actions['threads'];
+actions['threads']['messages'];
+actions['settings'];
+actions['settings']['billing'];
 ```
 
 ## Before hooks
 
 ```ts
-import * as users from "src/users";
+import * as users from 'src/users';
 
 @Action({
-  method: "POST",
+  method: 'POST',
 })
 export class CreateAction extends BaseAction {
   currentUser: users.User;
 
   before() {
-    if (!this.headers["Authorization"]) {
+    if (!this.headers['Authorization']) {
       return new Response({
         status: 401,
       });
     }
-    const authorization = this.headers["Authorization"].split(" ");
+    const authorization = this.headers['Authorization'].split(' ');
 
     this.currentUser = (await this.tokens.find(authorization[1])).user;
   }
@@ -237,12 +257,12 @@ export abstract class ApiAction extends BaseAction {
   currentUser: users.User;
 
   before() {
-    if (!this.headers["Authorization"]) {
+    if (!this.headers['Authorization']) {
       return new Response({
         status: 401,
       });
     }
-    const authorization = this.headers["Authorization"].split(" ");
+    const authorization = this.headers['Authorization'].split(' ');
 
     this.currentUser = (await this.tokens.find(authorization[1])).user;
   }
@@ -255,15 +275,15 @@ export abstract class ApiAction extends BaseAction {
 
 ```ts
 // src/api/actions/threads/create.action.ts
-import { ApiAction } from "src/api/actions/api.action";
-import * as workspaces from "src/workspaces";
+import { ApiAction } from 'src/api/actions/api.action';
+import * as workspaces from 'src/workspaces';
 
 @Action({})
 export class CreateAction extends ApiAction {
   exec() {
     const thread = this.threads.create({
       author: this.currentUser,
-      name: this.body["name"],
+      name: this.body['name'],
     });
 
     return thread;

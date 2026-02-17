@@ -46,7 +46,7 @@ const threads = { IndexAction, CreateAction, ShowAction, UpdateAction };
 @Action({})
 class MessageIndexAction extends BaseAction {
   async exec() {
-    return { messages: [] };
+    return { messages: [], ...this.params };
   }
 }
 
@@ -75,8 +75,8 @@ describe('router', () => {
 
     beforeAll(async () => {
       const result = router.create([
-        router.resources('threads', threads, [
-          router.resources('messages', messages),
+        router.resources('threads', { to: threads }, [
+          router.resources('messages', { to: messages }),
         ]),
       ]);
       app = await createApp(result.controllers());
@@ -106,9 +106,7 @@ describe('router', () => {
     });
 
     it('PATCH /threads/:id requires authorization', () => {
-      return request(app.getHttpServer())
-        .patch('/threads/42')
-        .expect(401);
+      return request(app.getHttpServer()).patch('/threads/42').expect(401);
     });
 
     it('PATCH /threads/:id with authorization', () => {
@@ -123,7 +121,7 @@ describe('router', () => {
       return request(app.getHttpServer())
         .get('/threads/1/messages')
         .expect(200)
-        .expect({ messages: [] });
+        .expect({ messages: [], threadId: '1' });
     });
 
     it('POST /threads/:thread_id/messages', () => {
@@ -163,6 +161,30 @@ describe('router', () => {
     });
   });
 
+  describe('resources with custom param', () => {
+    let app: INestApplication<App>;
+
+    beforeAll(async () => {
+      const result = router.create([
+        router.resources('workspaces', { to: threads, param: 'slug' }, [
+          router.resources('messages', { to: messages }),
+        ]),
+      ]);
+      app = await createApp(result.controllers());
+    });
+
+    afterAll(() => app.close());
+
+    it('GET /workspaces/:workspaceSlug/messages includes workspaceSlug param', () => {
+      return request(app.getHttpServer())
+        .get('/workspaces/my-workspace/messages')
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.workspaceSlug).toBe('my-workspace');
+        });
+    });
+  });
+
   describe('path routes', () => {
     let app: INestApplication<App>;
 
@@ -171,7 +193,9 @@ describe('router', () => {
       const billing = { UpdateAction };
 
       const result = router.create([
-        router.path('settings', settings, [router.path('billing', billing)]),
+        router.path('settings', { to: settings }, [
+          router.path('billing', { to: billing }),
+        ]),
       ]);
       app = await createApp(result.controllers());
     });
