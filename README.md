@@ -217,7 +217,10 @@ actions['settings']['billing'];
 
 ## Before hooks
 
+Use the `@Before()` decorator to mark methods as before hooks. The framework discovers all `@Before()` methods across the class hierarchy and runs them in parent-first order. If any hook returns a `Response`, execution stops and that response is sent — the `exec` method won't be called.
+
 ```ts
+import { Action, Before, BaseAction, Response } from 'src/lib/actions';
 import * as users from 'src/users';
 
 @Action({
@@ -226,7 +229,8 @@ import * as users from 'src/users';
 export class CreateAction extends BaseAction {
   currentUser: users.User;
 
-  before() {
+  @Before()
+  async authenticate() {
     if (!this.headers['Authorization']) {
       return new Response({
         status: 401,
@@ -237,18 +241,23 @@ export class CreateAction extends BaseAction {
     this.currentUser = (await this.tokens.find(authorization[1])).user;
   }
 
+  async exec() {
+    return { hello: this.body['name'] };
+  }
+
   private get tokens() {
     return this.moduleRef.get(users.Tokens);
   }
 }
 ```
 
-Before hooks make more sense in combination with inheritance of actions.
+Before hooks are most useful in combination with inheritance.
 
 ## Inheritance
 
 ```ts
 // src/api/actions/api.action.ts
+import { Action, Before, BaseAction, Response } from 'src/lib/actions';
 
 @Action({
   abstract: true,
@@ -256,7 +265,8 @@ Before hooks make more sense in combination with inheritance of actions.
 export abstract class ApiAction extends BaseAction {
   currentUser: users.User;
 
-  before() {
+  @Before()
+  async authenticate() {
     if (!this.headers['Authorization']) {
       return new Response({
         status: 401,
@@ -275,12 +285,20 @@ export abstract class ApiAction extends BaseAction {
 
 ```ts
 // src/api/actions/threads/create.action.ts
+import { Action, Before } from 'src/lib/actions';
 import { ApiAction } from 'src/api/actions/api.action';
 import * as workspaces from 'src/workspaces';
 
 @Action({})
 export class CreateAction extends ApiAction {
-  exec() {
+  @Before()
+  async validateBody() {
+    if (!this.body['name']) {
+      return new Response({ status: 400, body: { error: 'name is required' } });
+    }
+  }
+
+  async exec() {
     const thread = this.threads.create({
       author: this.currentUser,
       name: this.body['name'],
@@ -295,4 +313,4 @@ export class CreateAction extends ApiAction {
 }
 ```
 
-Before hooks could return a Response and then exec method won't be called or it can return nothing and in that case action's exec would be called.
+In this example, `authenticate` (from `ApiAction`) runs first, then `validateBody` (from `CreateAction`). Each class defines its own `@Before()` hooks without needing to call `super` — the framework chains them automatically.

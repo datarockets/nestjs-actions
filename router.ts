@@ -4,6 +4,7 @@ import { Request, Response as ExpressResponse } from 'express';
 import { getActionMeta, isActionClass, ActionMeta } from './action.decorator';
 import { BaseAction } from './base-action';
 import { Response } from './response';
+import { runBeforeHooks } from './before.decorator';
 import { singularize } from './singularize';
 
 type ActionModule = Record<string, any>;
@@ -56,13 +57,10 @@ function createControllerForAction(
       action.response = res;
       action.moduleRef = this.moduleRef;
 
-      const beforeResult = await action.before();
+      const beforeResult = await runBeforeHooks(action);
       if (beforeResult instanceof Response) {
         res.status(beforeResult.status);
         return beforeResult.body;
-      }
-      if (beforeResult !== undefined) {
-        return beforeResult;
       }
 
       const result = await action.exec();

@@ -2,7 +2,7 @@ import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { Action, BaseAction, Response, router } from './index';
+import { Action, Before, BaseAction, Response, router } from './index';
 
 @Action({})
 class IndexAction extends BaseAction {
@@ -27,7 +27,8 @@ class ShowAction extends BaseAction {
 
 @Action({ abstract: true })
 abstract class AbstractAction extends BaseAction {
-  before() {
+  @Before()
+  authenticate() {
     if (!this.headers['authorization']) {
       return new Response({ status: 401 });
     }

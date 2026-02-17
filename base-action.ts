@@ -1,6 +1,5 @@
 import { ModuleRef } from '@nestjs/core';
 import { Request, Response as ExpressResponse } from 'express';
-import { Response } from './response';
 
 export abstract class BaseAction {
   request: Request;
@@ -18,8 +17,6 @@ export abstract class BaseAction {
   get body() {
     return this.request.body;
   }
-
-  before(): Promise<Response | void> | Response | void {}
 
   abstract exec(): Promise<any> | any;
 }
