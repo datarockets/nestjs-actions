@@ -33,12 +33,17 @@ const METHOD_DECORATORS: Record<string, (path?: string) => MethodDecorator> = {
   DELETE: Delete,
 };
 
-let controllerCounter = 0;
-
 function extractActions(module: ActionModule): (new () => BaseAction)[] {
   return Object.values(module).filter(
     isActionClass,
   ) as (new () => BaseAction)[];
+}
+
+function routeNameFromPath(path: string): string {
+  return path
+    .split('/')
+    .filter((s) => s && !s.startsWith(':'))
+    .join('.');
 }
 
 function createControllerForAction(
@@ -46,8 +51,6 @@ function createControllerForAction(
   basePath: string,
   meta: ActionMeta,
 ) {
-  const id = controllerCounter++;
-
   class ActionController {
     constructor(private readonly moduleRef: ModuleRef) {}
 
@@ -72,8 +75,9 @@ function createControllerForAction(
     }
   }
 
+  const routeName = routeNameFromPath(basePath);
   Object.defineProperty(ActionController, 'name', {
-    value: `ActionController_${ActionClass.name}_${id}`,
+    value: `${routeName}.${ActionClass.name}`,
   });
 
   Reflect.defineMetadata('design:paramtypes', [ModuleRef], ActionController);
