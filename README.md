@@ -340,6 +340,43 @@ export class ShowAction extends BaseAction {
 }
 ```
 
+## Scalar UI
+
+Serve an interactive API documentation page powered by Scalar (loaded from CDN). The spec is generated from your actions routes.
+
+```ts
+import { ScalarModule } from 'src/lib/actions';
+import { api } from './api/api.module';
+
+@Module({
+  imports: [
+    ScalarModule.forRoot({ spec: api.spec() }),
+  ],
+})
+export class AppModule {}
+```
+
+This exposes:
+
+- `GET /docs` — Scalar API reference page
+- `GET /spec.json` — OpenAPI JSON spec
+
+Paths are configurable:
+
+```ts
+ScalarModule.forRoot({
+  spec: api.spec(),
+  docsPath: 'api-docs',
+  specPath: 'openapi.json',
+})
+```
+
+The `spec()` method accepts an optional `prefix` to prepend to all paths:
+
+```ts
+api.spec({ prefix: '/api/v1' })
+```
+
 ## Error Handling
 
 `ZodError` exceptions thrown from actions (e.g., from `params`, `body`, or `query` getters using `z.parse()`) are automatically caught and returned as a `422` response with an `input-error` code and structured validation details:

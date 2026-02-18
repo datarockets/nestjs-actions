@@ -46,6 +46,10 @@ function routeNameFromPath(path: string): string {
     .join('.');
 }
 
+function toOpenApiPath(path: string): string {
+  return '/' + path.replace(/:(\w+)/g, '{$1}');
+}
+
 function createControllerForAction(
   ActionClass: new () => BaseAction,
   basePath: string,
@@ -128,8 +132,21 @@ function routeResources(
   };
 }
 
+interface SpecPathOperation {
+  operationId: string;
+  responses: Record<string, { description: string }>;
+}
+
+type SpecPaths = Record<string, Record<string, SpecPathOperation>>;
+
+export interface Spec {
+  paths: SpecPaths;
+}
+
 function create(routes: RouteNode[], actionsMap?: ActionModule) {
   const controllers: any[] = [];
+  const specEntries: { path: string; method: string; operationId: string }[] =
+    [];
 
   function processRoutes(
     nodes: RouteNode[],
@@ -149,6 +166,17 @@ function create(routes: RouteNode[], actionsMap?: ActionModule) {
           controllers.push(
             createControllerForAction(ActionClass, fullPath, meta),
           );
+
+          const actionPath = meta.path ? `${fullPath}/${meta.path}` : fullPath;
+          const routeName = routeNameFromPath(fullPath);
+          const name = ActionClass.name.replace(/Action$/, '');
+          const operationId = routeName ? `${routeName}.${name}` : name;
+
+          specEntries.push({
+            path: toOpenApiPath(actionPath),
+            method: meta.method.toLowerCase(),
+            operationId,
+          });
         }
       }
 
@@ -170,6 +198,22 @@ function create(routes: RouteNode[], actionsMap?: ActionModule) {
   return {
     controllers() {
       return controllers;
+    },
+
+    spec(options?: { prefix?: string }): Spec {
+      const prefix = options?.prefix || '';
+      const paths: SpecPaths = {};
+      for (const entry of specEntries) {
+        const path = prefix ? `${prefix}${entry.path}` : entry.path;
+        if (!paths[path]) paths[path] = {};
+        paths[path][entry.method] = {
+          operationId: entry.operationId,
+          responses: {
+            '200': { description: 'Successful response' },
+          },
+        };
+      }
+      return { paths };
     },
   };
 }

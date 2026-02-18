@@ -231,6 +231,90 @@ describe('router', () => {
     });
   });
 
+  describe('spec', () => {
+    it('returns paths with methods and operationIds for resources', () => {
+      const result = router.create([
+        router.resources('threads', { to: threads }, [
+          router.resources('messages', { to: messages }),
+        ]),
+      ]);
+
+      expect(result.spec()).toEqual({
+        paths: {
+          '/threads': {
+            get: { operationId: 'threads.Index' },
+            post: { operationId: 'threads.Create' },
+          },
+          '/threads/{id}': {
+            get: { operationId: 'threads.Show' },
+            patch: { operationId: 'threads.Update' },
+          },
+          '/threads/{threadId}/messages': {
+            get: { operationId: 'threads.messages.MessageIndex' },
+            post: { operationId: 'threads.messages.MessageCreate' },
+          },
+        },
+      });
+    });
+
+    it('returns paths for path routes', () => {
+      const settings = { ShowAction };
+      const billing = { UpdateAction };
+
+      const result = router.create([
+        router.path('settings', { to: settings }, [
+          router.path('billing', { to: billing }),
+        ]),
+      ]);
+
+      expect(result.spec()).toEqual({
+        paths: {
+          '/settings/{id}': {
+            get: { operationId: 'settings.Show' },
+          },
+          '/settings/billing/{id}': {
+            patch: { operationId: 'settings.billing.Update' },
+          },
+        },
+      });
+    });
+
+    it('converts resource params with custom param option', () => {
+      const result = router.create([
+        router.resources('workspaces', { to: threads, param: 'slug' }, [
+          router.resources('messages', { to: messages }),
+        ]),
+      ]);
+
+      const paths = Object.keys(result.spec().paths);
+      expect(paths).toContain('/workspaces/{workspaceSlug}/messages');
+    });
+
+    it('prepends prefix to all paths when specified', () => {
+      const result = router.create([
+        router.resources('threads', { to: threads }),
+      ]);
+
+      const spec = result.spec({ prefix: '/api/v1' });
+      expect(Object.keys(spec.paths)).toEqual([
+        '/api/v1/threads',
+        '/api/v1/threads/{id}',
+      ]);
+    });
+
+    it('works with auto-traversal', () => {
+      const actions = { threads: { ...threads, messages } };
+      const result = router.create(
+        [router.resources('threads', [router.resources('messages')])],
+        actions,
+      );
+
+      const spec = result.spec();
+      expect(spec.paths['/threads']).toBeDefined();
+      expect(spec.paths['/threads/{threadId}/messages']).toBeDefined();
+    });
+  });
+
   describe('path routes with auto-traversal', () => {
     let app: INestApplication<App>;
 

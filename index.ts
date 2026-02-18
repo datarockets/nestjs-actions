@@ -4,6 +4,7 @@ export { Before } from './before.decorator';
 export { BaseAction } from './base-action';
 export { Response } from './response';
 export { router } from './router';
+export { ScalarModule } from './scalar.module';
 export * from './application.filter';
 export * from './application.interceptor';
 export { ApplicationError } from './responses/application-error';
