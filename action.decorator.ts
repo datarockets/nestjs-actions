@@ -16,6 +16,8 @@ export interface ActionMeta {
   abstract: boolean;
 }
 
+const MEMOIZED_GETTERS = ['params', 'query', 'body'];
+
 export function Action(options: ActionOptions): ClassDecorator {
   return (target) => {
     Reflect.defineMetadata(ACTION_METHOD_KEY, options.method || 'GET', target);
@@ -25,6 +27,22 @@ export function Action(options: ActionOptions): ClassDecorator {
       options.abstract || false,
       target,
     );
+
+    const proto = target.prototype;
+    for (const key of MEMOIZED_GETTERS) {
+      const desc = Object.getOwnPropertyDescriptor(proto, key);
+      if (desc?.get) {
+        const original = desc.get;
+        const cacheKey = Symbol(`memoized:${key}`);
+        Object.defineProperty(proto, key, {
+          ...desc,
+          get() {
+            if (!(cacheKey in this)) this[cacheKey] = original.call(this);
+            return this[cacheKey];
+          },
+        });
+      }
+    }
   };
 }
 

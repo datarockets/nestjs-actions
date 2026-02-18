@@ -5,6 +5,8 @@ import {
   HttpException,
 } from '@nestjs/common';
 import { Response } from 'express';
+import { z } from 'zod';
+import { InputError } from './responses/input-error';
 
 @Catch()
 export class ApplicationFilter implements ExceptionFilter {
@@ -12,12 +14,18 @@ export class ApplicationFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
 
+    if (exception instanceof z.ZodError) {
+      const inputError = new InputError(exception);
+      response.status(inputError.status).json(inputError.body);
+      return;
+    }
+
     const status =
       exception instanceof HttpException ? exception.getStatus() : 500;
 
     const code = STATUS_CODES[status] || 'application-error';
 
-    response.status(status).json({ code, status });
+    response.status(status).json({ code });
   }
 }
 

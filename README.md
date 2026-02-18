@@ -314,3 +314,39 @@ export class CreateAction extends ApiAction {
 ```
 
 In this example, `authenticate` (from `ApiAction`) runs first, then `validateBody` (from `CreateAction`). Each class defines its own `@Before()` hooks without needing to call `super` — the framework chains them automatically.
+
+## Memoized Getters
+
+The `@Action` decorator automatically memoizes `params`, `query`, and `body` getters when they are overridden in a subclass. The getter runs once per request, and subsequent accesses return the cached result. Inherited getters from `BaseAction` are not affected.
+
+```ts
+import { z } from 'zod';
+
+@Action({ path: ':id' })
+export class ShowAction extends BaseAction {
+  static readonly Params = z.object({
+    id: z.coerce.number(),
+  });
+
+  // Automatically memoized — Params.parse() runs only once per request
+  get params() {
+    return ShowAction.Params.parse(this.request.params);
+  }
+
+  async exec() {
+    // this.params can be accessed multiple times without re-parsing
+    return { id: this.params.id };
+  }
+}
+```
+
+## Error Handling
+
+`ZodError` exceptions thrown from actions (e.g., from `params`, `body`, or `query` getters using `z.parse()`) are automatically caught and returned as a `422` response with an `input-error` code and structured validation details:
+
+```json
+{
+  "code": "input-error",
+  "details": { ... }
+}
+```

@@ -14,6 +14,10 @@ export abstract class BaseAction {
     return this.request.params;
   }
 
+  get query(): Record<string, any> {
+    return this.request.query;
+  }
+
   get body() {
     return this.request.body;
   }
