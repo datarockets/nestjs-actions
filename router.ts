@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Req, Res } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { Request, Response as ExpressResponse } from 'express';
+import { z } from 'zod';
 import { getActionMeta, isActionClass, ActionMeta } from './action.decorator';
 import { BaseAction } from './base-action';
 import { Response } from './response';
@@ -132,8 +133,16 @@ function routeResources(
   };
 }
 
+interface SpecPathParameter {
+  name: string;
+  in: 'path';
+  required: true;
+  schema: Record<string, unknown>;
+}
+
 interface SpecPathOperation {
   operationId: string;
+  parameters?: SpecPathParameter[];
   responses: Record<string, { description: string }>;
 }
 
@@ -143,10 +152,41 @@ export interface Spec {
   paths: SpecPaths;
 }
 
+function pathParameters(
+  openApiPath: string,
+  ActionClass: new () => BaseAction,
+): SpecPathParameter[] {
+  const paramNames = [...openApiPath.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
+  if (paramNames.length === 0) return [];
+
+  const paramsSchema = (ActionClass as any).Params;
+  let schemasByName: Record<string, Record<string, unknown>> = {};
+
+  if (paramsSchema) {
+    const jsonSchema = z.toJSONSchema(paramsSchema, { io: 'input' });
+    const properties = (jsonSchema as Record<string, any>).properties || {};
+    schemasByName = properties;
+  }
+
+  return paramNames.map((name) => {
+    const schema = schemasByName[name];
+    return {
+      name,
+      in: 'path' as const,
+      required: true as const,
+      schema: schema ? { ...schema } : { type: 'string' },
+    };
+  });
+}
+
 function create(routes: RouteNode[], actionsMap?: ActionModule) {
   const controllers: any[] = [];
-  const specEntries: { path: string; method: string; operationId: string }[] =
-    [];
+  const specEntries: {
+    path: string;
+    method: string;
+    operationId: string;
+    actionClass: new () => BaseAction;
+  }[] = [];
 
   function processRoutes(
     nodes: RouteNode[],
@@ -176,6 +216,7 @@ function create(routes: RouteNode[], actionsMap?: ActionModule) {
             path: toOpenApiPath(actionPath),
             method: meta.method.toLowerCase(),
             operationId,
+            actionClass: ActionClass,
           });
         }
       }
@@ -206,12 +247,17 @@ function create(routes: RouteNode[], actionsMap?: ActionModule) {
       for (const entry of specEntries) {
         const path = prefix ? `${prefix}${entry.path}` : entry.path;
         if (!paths[path]) paths[path] = {};
-        paths[path][entry.method] = {
+        const operation: SpecPathOperation = {
           operationId: entry.operationId,
           responses: {
             '200': { description: 'Successful response' },
           },
         };
+        const params = pathParameters(path, entry.actionClass);
+        if (params.length > 0) {
+          operation.parameters = params;
+        }
+        paths[path][entry.method] = operation;
       }
       return { paths };
     },

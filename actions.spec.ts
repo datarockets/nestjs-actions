@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
+import { z } from 'zod';
 import { Action, Before, BaseAction, Response, router } from './index';
 
 @Action({})
@@ -239,19 +240,43 @@ describe('router', () => {
         ]),
       ]);
 
+      const pathParam = (name: string) => ({
+        name,
+        in: 'path',
+        required: true,
+        schema: { type: 'string' },
+      });
+      const ok = { responses: { '200': { description: 'Successful response' } } };
+
       expect(result.spec()).toEqual({
         paths: {
           '/threads': {
-            get: { operationId: 'threads.Index' },
-            post: { operationId: 'threads.Create' },
+            get: { operationId: 'threads.Index', ...ok },
+            post: { operationId: 'threads.Create', ...ok },
           },
           '/threads/{id}': {
-            get: { operationId: 'threads.Show' },
-            patch: { operationId: 'threads.Update' },
+            get: {
+              operationId: 'threads.Show',
+              parameters: [pathParam('id')],
+              ...ok,
+            },
+            patch: {
+              operationId: 'threads.Update',
+              parameters: [pathParam('id')],
+              ...ok,
+            },
           },
           '/threads/{threadId}/messages': {
-            get: { operationId: 'threads.messages.MessageIndex' },
-            post: { operationId: 'threads.messages.MessageCreate' },
+            get: {
+              operationId: 'threads.messages.MessageIndex',
+              parameters: [pathParam('threadId')],
+              ...ok,
+            },
+            post: {
+              operationId: 'threads.messages.MessageCreate',
+              parameters: [pathParam('threadId')],
+              ...ok,
+            },
           },
         },
       });
@@ -267,14 +292,64 @@ describe('router', () => {
         ]),
       ]);
 
+      const pathParam = (name: string) => ({
+        name,
+        in: 'path',
+        required: true,
+        schema: { type: 'string' },
+      });
+      const ok = { responses: { '200': { description: 'Successful response' } } };
+
       expect(result.spec()).toEqual({
         paths: {
           '/settings/{id}': {
-            get: { operationId: 'settings.Show' },
+            get: {
+              operationId: 'settings.Show',
+              parameters: [pathParam('id')],
+              ...ok,
+            },
           },
           '/settings/billing/{id}': {
-            patch: { operationId: 'settings.billing.Update' },
+            patch: {
+              operationId: 'settings.billing.Update',
+              parameters: [pathParam('id')],
+              ...ok,
+            },
           },
+        },
+      });
+    });
+
+    it('uses schema from static Params when defined', () => {
+      @Action({ method: 'GET', path: ':id' })
+      class TypedShowAction extends BaseAction {
+        static Params = z.object({
+          threadId: z.string(),
+          id: z.number(),
+        });
+        exec() {
+          return {};
+        }
+      }
+
+      const result = router.create([
+        router.resources('threads', { to: { TypedShowAction } }),
+      ]);
+
+      const ok = { responses: { '200': { description: 'Successful response' } } };
+      const spec = result.spec();
+      expect(spec.paths['/threads/{id}']).toEqual({
+        get: {
+          operationId: 'threads.TypedShow',
+          parameters: [
+            {
+              name: 'id',
+              in: 'path',
+              required: true,
+              schema: { type: 'number' },
+            },
+          ],
+          ...ok,
         },
       });
     });

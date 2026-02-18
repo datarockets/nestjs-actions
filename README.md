@@ -377,6 +377,27 @@ The `spec()` method accepts an optional `prefix` to prepend to all paths:
 api.spec({ prefix: '/api/v1' })
 ```
 
+### Path Parameters
+
+Path parameters (e.g., `{id}`, `{threadId}`) are automatically included in the generated spec. By default, each parameter is typed as `string`.
+
+If an action defines a `static Params` zod object, the schema for matching fields is extracted and used instead:
+
+```ts
+@Action({ method: 'GET', path: ':id' })
+export class ShowAction extends BaseAction {
+  static Params = z.object({
+    id: z.number(),
+  });
+
+  exec() {
+    return {};
+  }
+}
+```
+
+This produces `{ type: "number" }` for the `id` path parameter in the spec, rather than the default `{ type: "string" }`.
+
 ## Error Handling
 
 `ZodError` exceptions thrown from actions (e.g., from `params`, `body`, or `query` getters using `z.parse()`) are automatically caught and returned as a `422` response with an `input-error` code and structured validation details:
