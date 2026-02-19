@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Req, Res } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Sse, Req, Res } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { Request, Response as ExpressResponse } from 'express';
 import { z } from 'zod';
@@ -56,6 +56,8 @@ function createControllerForAction(
   basePath: string,
   meta: ActionMeta,
 ) {
+  const isSse = meta.method.toUpperCase() === 'SSE';
+
   class ActionController {
     constructor(private readonly moduleRef: ModuleRef) {}
 
@@ -78,9 +80,18 @@ function createControllerForAction(
       }
       return result;
     }
+
+    handleSse(req: Request) {
+      const action = new ActionClass();
+      action.request = req;
+      action.moduleRef = this.moduleRef;
+
+      return action.exec();
+    }
   }
 
   const routeName = routeNameFromPath(basePath);
+  const handlerName = isSse ? 'handleSse' : 'handle';
   Object.defineProperty(ActionController, 'name', {
     value: `${routeName}.${ActionClass.name}`,
   });
@@ -90,17 +101,26 @@ function createControllerForAction(
 
   const descriptor = Object.getOwnPropertyDescriptor(
     ActionController.prototype,
-    'handle',
+    handlerName,
   )!;
-  const methodDec = METHOD_DECORATORS[meta.method.toUpperCase()] || Get;
-  methodDec(meta.path || undefined)(
-    ActionController.prototype,
-    'handle',
-    descriptor,
-  );
 
-  Req()(ActionController.prototype, 'handle', 0);
-  Res({ passthrough: true })(ActionController.prototype, 'handle', 1);
+  if (isSse) {
+    Sse(meta.path || undefined)(
+      ActionController.prototype,
+      handlerName,
+      descriptor,
+    );
+    Req()(ActionController.prototype, handlerName, 0);
+  } else {
+    const methodDec = METHOD_DECORATORS[meta.method.toUpperCase()] || Get;
+    methodDec(meta.path || undefined)(
+      ActionController.prototype,
+      handlerName,
+      descriptor,
+    );
+    Req()(ActionController.prototype, handlerName, 0);
+    Res({ passthrough: true })(ActionController.prototype, handlerName, 1);
+  }
 
   return ActionController;
 }
@@ -241,7 +261,7 @@ function create(routes: RouteNode[], actionsMap?: ActionModule) {
 
           specEntries.push({
             path: toOpenApiPath(actionPath),
-            method: meta.method.toLowerCase(),
+            method: meta.method.toUpperCase() === 'SSE' ? 'get' : meta.method.toLowerCase(),
             operationId,
             actionClass: ActionClass,
           });

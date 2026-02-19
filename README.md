@@ -174,8 +174,8 @@ PATCH  /settings/billing
 By default, nested resources use the singularized resource name followed by `Id` for the parameter (e.g., `:threadId`). You can customize this with the `param` option:
 
 ```ts
-router.resources("workspaces", { param: "slug" }, [
-  router.resources("threads"),
+router.resources('workspaces', { param: 'slug' }, [
+  router.resources('threads'),
 ]);
 ```
 
@@ -349,9 +349,7 @@ import { ScalarModule } from 'src/lib/actions';
 import { api } from './api/api.module';
 
 @Module({
-  imports: [
-    ScalarModule.forRoot({ spec: api.spec() }),
-  ],
+  imports: [ScalarModule.forRoot({ spec: api.spec() })],
 })
 export class AppModule {}
 ```
@@ -368,13 +366,13 @@ ScalarModule.forRoot({
   spec: api.spec(),
   docsPath: 'api-docs',
   specPath: 'openapi.json',
-})
+});
 ```
 
 The `spec()` method accepts an optional `prefix` to prepend to all paths:
 
 ```ts
-api.spec({ prefix: '/api/v1' })
+api.spec({ prefix: '/api/v1' });
 ```
 
 ### Path Parameters
@@ -417,6 +415,26 @@ export class IndexAction extends BaseAction {
 ```
 
 This produces two query parameters: `page` (optional, `type: "number"`) and `limit` (required, `type: "number"`).
+
+## Server-Sent Events (SSE)
+
+Use `method: 'SSE'` to create an SSE endpoint. The `exec` method should return an `Observable<MessageEvent>`:
+
+```ts
+import { Action, BaseAction } from 'src/lib/actions';
+import { Observable, MessageEvent } from 'rxjs';
+
+@Action({ method: 'SSE' })
+export class StreamAction extends BaseAction {
+  exec(): Observable<MessageEvent> {
+    return new Observable((subscriber) => {
+      subscriber.next({ data: { hello: 'world' } });
+    });
+  }
+}
+```
+
+SSE actions use NestJS's `@Sse()` decorator under the hood. The framework manages the response — you only need to return the Observable. SSE routes appear as `GET` in the generated OpenAPI spec.
 
 ## Error Handling
 
