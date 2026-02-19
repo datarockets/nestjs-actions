@@ -398,6 +398,26 @@ export class ShowAction extends BaseAction {
 
 This produces `{ type: "number" }` for the `id` path parameter in the spec, rather than the default `{ type: "string" }`.
 
+### Query Parameters
+
+If an action defines a `static Query` zod object, query parameters are automatically included in the generated spec. Each property becomes a query parameter, with `required` derived from the schema:
+
+```ts
+@Action({})
+export class IndexAction extends BaseAction {
+  static Query = z.object({
+    page: z.number().optional(),
+    limit: z.number(),
+  });
+
+  exec() {
+    return {};
+  }
+}
+```
+
+This produces two query parameters: `page` (optional, `type: "number"`) and `limit` (required, `type: "number"`).
+
 ## Error Handling
 
 `ZodError` exceptions thrown from actions (e.g., from `params`, `body`, or `query` getters using `z.parse()`) are automatically caught and returned as a `422` response with an `input-error` code and structured validation details:

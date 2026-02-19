@@ -246,7 +246,9 @@ describe('router', () => {
         required: true,
         schema: { type: 'string' },
       });
-      const ok = { responses: { '200': { description: 'Successful response' } } };
+      const ok = {
+        responses: { '200': { description: 'Successful response' } },
+      };
 
       expect(result.spec()).toEqual({
         paths: {
@@ -298,7 +300,9 @@ describe('router', () => {
         required: true,
         schema: { type: 'string' },
       });
-      const ok = { responses: { '200': { description: 'Successful response' } } };
+      const ok = {
+        responses: { '200': { description: 'Successful response' } },
+      };
 
       expect(result.spec()).toEqual({
         paths: {
@@ -336,7 +340,9 @@ describe('router', () => {
         router.resources('threads', { to: { TypedShowAction } }),
       ]);
 
-      const ok = { responses: { '200': { description: 'Successful response' } } };
+      const ok = {
+        responses: { '200': { description: 'Successful response' } },
+      };
       const spec = result.spec();
       expect(spec.paths['/threads/{id}']).toEqual({
         get: {
@@ -363,6 +369,48 @@ describe('router', () => {
 
       const paths = Object.keys(result.spec().paths);
       expect(paths).toContain('/workspaces/{workspaceSlug}/messages');
+    });
+
+    it('includes query parameters from static Query when defined', () => {
+      @Action({})
+      class QueryIndexAction extends BaseAction {
+        static Query = z.object({
+          page: z.number().optional(),
+          limit: z.number(),
+        });
+        exec() {
+          return {};
+        }
+      }
+
+      const result = router.create([
+        router.resources('items', { to: { QueryIndexAction } }),
+      ]);
+
+      const ok = {
+        responses: { '200': { description: 'Successful response' } },
+      };
+      const spec = result.spec();
+      expect(spec.paths['/items']).toEqual({
+        get: {
+          operationId: 'items.QueryIndex',
+          parameters: [
+            {
+              name: 'page',
+              in: 'query',
+              required: false,
+              schema: { type: 'number' },
+            },
+            {
+              name: 'limit',
+              in: 'query',
+              required: true,
+              schema: { type: 'number' },
+            },
+          ],
+          ...ok,
+        },
+      });
     });
 
     it('prepends prefix to all paths when specified', () => {

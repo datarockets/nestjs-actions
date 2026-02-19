@@ -140,9 +140,18 @@ interface SpecPathParameter {
   schema: Record<string, unknown>;
 }
 
+interface SpecQueryParameter {
+  name: string;
+  in: 'query';
+  required: boolean;
+  schema: Record<string, unknown>;
+}
+
+type SpecParameter = SpecPathParameter | SpecQueryParameter;
+
 interface SpecPathOperation {
   operationId: string;
-  parameters?: SpecPathParameter[];
+  parameters?: SpecParameter[];
   responses: Record<string, { description: string }>;
 }
 
@@ -177,6 +186,24 @@ function pathParameters(
       schema: schema ? { ...schema } : { type: 'string' },
     };
   });
+}
+
+function queryParameters(
+  ActionClass: new () => BaseAction,
+): SpecQueryParameter[] {
+  const querySchema = (ActionClass as any).Query;
+  if (!querySchema) return [];
+
+  const jsonSchema = z.toJSONSchema(querySchema, { io: 'input' });
+  const properties = (jsonSchema as Record<string, any>).properties || {};
+  const required: string[] = (jsonSchema as Record<string, any>).required || [];
+
+  return Object.entries(properties).map(([name, schema]) => ({
+    name,
+    in: 'query' as const,
+    required: required.includes(name),
+    schema: { ...(schema as Record<string, unknown>) },
+  }));
 }
 
 function create(routes: RouteNode[], actionsMap?: ActionModule) {
@@ -253,7 +280,10 @@ function create(routes: RouteNode[], actionsMap?: ActionModule) {
             '200': { description: 'Successful response' },
           },
         };
-        const params = pathParameters(path, entry.actionClass);
+        const params: SpecParameter[] = [
+          ...pathParameters(path, entry.actionClass),
+          ...queryParameters(entry.actionClass),
+        ];
         if (params.length > 0) {
           operation.parameters = params;
         }
