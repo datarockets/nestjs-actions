@@ -427,6 +427,44 @@ export class ShowAction extends ApiAction {
 }
 ```
 
+### Request Body
+
+If an action defines a `static Request` zod object, a `requestBody` with `application/json` content is automatically included in the generated spec:
+
+```ts
+@Action({ method: 'POST' })
+export class CreateAction extends BaseAction {
+  static Request = z.object({
+    name: z.string(),
+    age: z.number().optional(),
+  });
+
+  exec() {
+    return {};
+  }
+}
+```
+
+This produces:
+
+```yaml
+requestBody:
+  content:
+    application/json:
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+          age:
+            type: number
+        required: [name]
+```
+
+If the schema is registered with an `id`, the generated spec uses a `$ref` to `#/components/schemas/<id>`. A `description` from `.meta({ description: "..." })` is used as the `requestBody.description`.
+
+Note: SSE actions ignore `static Request`.
+
 ### Path Parameters
 
 Path parameters (e.g., `{id}`, `{threadId}`) are automatically included in the generated spec. By default, each parameter is typed as `string`.

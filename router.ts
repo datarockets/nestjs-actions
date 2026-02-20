@@ -193,9 +193,15 @@ interface SpecResponse {
   content?: Record<string, SpecMediaType>;
 }
 
+interface SpecRequestBody {
+  content: Record<string, { schema: Record<string, unknown> }>;
+  description?: string;
+}
+
 interface SpecPathOperation {
   operationId: string;
   parameters?: SpecParameter[];
+  requestBody?: SpecRequestBody;
   responses: Record<string, SpecResponse>;
 }
 
@@ -424,6 +430,38 @@ function queryParameters(
   }));
 }
 
+function operationRequestBody(
+  actionClass: new () => BaseAction,
+  isSse: boolean,
+): {
+  requestBody?: SpecRequestBody;
+  referencedSchemaIds: string[];
+} {
+  if (isSse) return { referencedSchemaIds: [] };
+
+  const requestSchema = (actionClass as any).Request as z.ZodType | undefined;
+  if (!requestSchema) return { referencedSchemaIds: [] };
+
+  const schemaSpec = responseSchema(requestSchema);
+
+  const body: SpecRequestBody = {
+    content: {
+      'application/json': {
+        schema: schemaSpec.schema,
+      },
+    },
+  };
+
+  if (schemaSpec.description) {
+    body.description = schemaSpec.description;
+  }
+
+  return {
+    requestBody: body,
+    referencedSchemaIds: schemaSpec.referencedIds,
+  };
+}
+
 function create(routes: RouteNode[], actionsMap?: ActionModule) {
   const controllers: any[] = [];
   const specEntries: {
@@ -503,6 +541,13 @@ function create(routes: RouteNode[], actionsMap?: ActionModule) {
         for (const schemaId of specResponses.referencedSchemaIds) {
           usedSchemaIds.add(schemaId);
         }
+        const specRequestBody = operationRequestBody(
+          entry.actionClass,
+          entry.isSse,
+        );
+        for (const schemaId of specRequestBody.referencedSchemaIds) {
+          usedSchemaIds.add(schemaId);
+        }
         const operation: SpecPathOperation = {
           operationId: entry.operationId,
           responses: specResponses.responses,
@@ -513,6 +558,9 @@ function create(routes: RouteNode[], actionsMap?: ActionModule) {
         ];
         if (params.length > 0) {
           operation.parameters = params;
+        }
+        if (specRequestBody.requestBody) {
+          operation.requestBody = specRequestBody.requestBody;
         }
         paths[path][entry.method] = operation;
       }
@@ -528,11 +576,36 @@ function create(routes: RouteNode[], actionsMap?: ActionModule) {
       ).schemas;
 
       const schemas: Record<string, Record<string, unknown>> = {};
-      for (const schemaId of usedSchemaIds) {
+      const queue = [...usedSchemaIds];
+      const visited = new Set<string>();
+
+      while (queue.length > 0) {
+        const schemaId = queue.pop()!;
+        if (visited.has(schemaId)) continue;
+        visited.add(schemaId);
+
         const schema = globalSchemas?.[schemaId];
-        if (schema) {
-          schemas[schemaId] = schema;
+        if (!schema) continue;
+        schemas[schemaId] = schema;
+
+        const raw = JSON.stringify(schema);
+        const refPattern = /"\$ref"\s*:\s*"([^"#][^"]*)"/g;
+        let match;
+        while ((match = refPattern.exec(raw)) !== null) {
+          queue.push(match[1]);
         }
+      }
+
+      for (const [id, schema] of Object.entries(schemas)) {
+        const raw = JSON.stringify(schema);
+        const fixed = raw.replace(
+          /"\$ref"\s*:\s*"([^"#][^"]*)"/g,
+          '"$ref":"#/components/schemas/$1"',
+        );
+        const parsed = JSON.parse(fixed) as Record<string, unknown>;
+        delete parsed['$schema'];
+        delete parsed['id'];
+        schemas[id] = parsed;
       }
 
       if (Object.keys(schemas).length === 0) {
