@@ -3,6 +3,7 @@ import {
   Catch,
   ExceptionFilter,
   HttpException,
+  Logger,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { z } from 'zod';
@@ -10,6 +11,8 @@ import { InputError } from './responses/input-error';
 
 @Catch()
 export class ApplicationFilter implements ExceptionFilter {
+  private readonly logger = new Logger(ApplicationFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
@@ -22,6 +25,10 @@ export class ApplicationFilter implements ExceptionFilter {
 
     const status =
       exception instanceof HttpException ? exception.getStatus() : 500;
+
+    if (status === 500) {
+      this.logger.error(exception);
+    }
 
     const code = STATUS_CODES[status] || 'application-error';
 
