@@ -185,13 +185,12 @@ type SpecParameter = SpecPathParameter | SpecQueryParameter;
 
 interface SpecMediaType {
   schema: Record<string, unknown>;
+  itemSchema?: Record<string, unknown>;
 }
 
 interface SpecResponse {
   description?: string;
-  content?: {
-    'application/json': SpecMediaType;
-  };
+  content?: Record<string, SpecMediaType>;
 }
 
 interface SpecPathOperation {
@@ -254,7 +253,10 @@ function responseSchema(schema: z.ZodType): {
   };
 }
 
-function operationResponses(actionClass: new () => BaseAction): {
+function operationResponses(
+  actionClass: new () => BaseAction,
+  isSse: boolean,
+): {
   responses: Record<string, SpecResponse>;
   referencedSchemaIds: string[];
 } {
@@ -262,16 +264,75 @@ function operationResponses(actionClass: new () => BaseAction): {
   const beforeResponses = getBeforeHookResponses(action);
   const actionResponses = getActionMeta(actionClass).openapi?.responses;
 
-  const staticResponseSchema = (actionClass as any).Response as
-    | z.ZodType
-    | undefined;
   let staticResponse: OpenApiResponses | undefined;
-  if (staticResponseSchema) {
-    const meta = z.globalRegistry.get(staticResponseSchema) as
-      | { openapi?: { response?: { status?: number } } }
+
+  if (isSse) {
+    const responseItemSchema = (actionClass as any).ResponseItem as
+      | z.ZodType
       | undefined;
-    const status = meta?.openapi?.response?.status ?? 200;
-    staticResponse = { [status]: staticResponseSchema };
+
+    if (responseItemSchema) {
+      const itemSchemaSpec = responseSchema(responseItemSchema);
+      const referencedSchemaIds: string[] = [...itemSchemaSpec.referencedIds];
+
+      const mergedResponses = [
+        ...beforeResponses,
+        ...(actionResponses ? [actionResponses] : []),
+      ].reduce(
+        (acc, responses) => ({ ...acc, ...responses }),
+        {} as OpenApiResponses,
+      );
+
+      const responses: Record<string, SpecResponse> = {};
+
+      for (const [status, schema] of Object.entries(mergedResponses)) {
+        const schemaSpec = responseSchema(schema);
+        referencedSchemaIds.push(...schemaSpec.referencedIds);
+
+        const response: SpecResponse = {
+          content: {
+            'application/json': {
+              schema: schemaSpec.schema,
+            },
+          },
+        };
+
+        if (schemaSpec.description) {
+          response.description = schemaSpec.description;
+        }
+
+        responses[status] = response;
+      }
+
+      const sseResponse: SpecResponse = {
+        content: {
+          'text/event-stream': {
+            schema: { type: 'string' },
+            itemSchema: itemSchemaSpec.schema,
+          },
+        },
+      };
+
+      if (itemSchemaSpec.description) {
+        sseResponse.description = itemSchemaSpec.description;
+      }
+
+      responses['200'] = sseResponse;
+
+      return { responses, referencedSchemaIds };
+    }
+  } else {
+    const staticResponseSchema = (actionClass as any).Response as
+      | z.ZodType
+      | undefined;
+
+    if (staticResponseSchema) {
+      const meta = z.globalRegistry.get(staticResponseSchema) as
+        | { openapi?: { response?: { status?: number } } }
+        | undefined;
+      const status = meta?.openapi?.response?.status ?? 200;
+      staticResponse = { [status]: staticResponseSchema };
+    }
   }
 
   const mergedResponses = [
@@ -370,6 +431,7 @@ function create(routes: RouteNode[], actionsMap?: ActionModule) {
     method: string;
     operationId: string;
     actionClass: new () => BaseAction;
+    isSse: boolean;
   }[] = [];
 
   function processRoutes(
@@ -396,14 +458,13 @@ function create(routes: RouteNode[], actionsMap?: ActionModule) {
           const name = ActionClass.name.replace(/Action$/, '');
           const operationId = routeName ? `${routeName}.${name}` : name;
 
+          const isSse = meta.method.toUpperCase() === 'SSE';
           specEntries.push({
             path: toOpenApiPath(actionPath),
-            method:
-              meta.method.toUpperCase() === 'SSE'
-                ? 'get'
-                : meta.method.toLowerCase(),
+            method: isSse ? 'get' : meta.method.toLowerCase(),
             operationId,
             actionClass: ActionClass,
+            isSse,
           });
         }
       }
@@ -435,7 +496,10 @@ function create(routes: RouteNode[], actionsMap?: ActionModule) {
       for (const entry of specEntries) {
         const path = prefix ? `${prefix}${entry.path}` : entry.path;
         if (!paths[path]) paths[path] = {};
-        const specResponses = operationResponses(entry.actionClass);
+        const specResponses = operationResponses(
+          entry.actionClass,
+          entry.isSse,
+        );
         for (const schemaId of specResponses.referencedSchemaIds) {
           usedSchemaIds.add(schemaId);
         }

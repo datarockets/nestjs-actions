@@ -399,9 +399,7 @@ The response `description` in the generated spec is taken from the zod schema's 
 @Action({
   openapi: {
     responses: {
-      201: z
-        .object({ id: z.string() })
-        .meta({ description: 'Created user' }),
+      201: z.object({ id: z.string() }).meta({ description: 'Created user' }),
     },
   },
 })
@@ -524,6 +522,49 @@ export class StreamAction extends BaseAction {
 ```
 
 SSE actions use NestJS's `@Sse()` decorator under the hood. The framework manages the response — you only need to return the Observable. SSE routes appear as `GET` in the generated OpenAPI spec.
+
+### SSE Response Schema
+
+Define a `static ResponseItem` zod schema to describe the shape of each individual event in the stream. The generated spec uses the OpenAPI 3.2 `itemSchema` keyword under `text/event-stream`:
+
+```ts
+@Action({ method: 'SSE' })
+export class StreamAction extends BaseAction {
+  static readonly ResponseItem = z.object({
+    symbol: z.string(),
+    price: z.string(),
+  });
+
+  exec(): Observable<MessageEvent> {
+    return new Observable((subscriber) => {
+      subscriber.next({ data: { symbol: 'AAPL', price: '100.25' } });
+    });
+  }
+}
+```
+
+This produces:
+
+```yaml
+responses:
+  "200":
+    content:
+      text/event-stream:
+        schema:
+          type: string
+        itemSchema:
+          type: object
+          properties:
+            symbol:
+              type: string
+            price:
+              type: string
+          required: [symbol, price]
+```
+
+If the schema is registered with an `id`, the generated spec uses a `$ref` for `itemSchema`. Before hook error responses (e.g., 401) are merged alongside the SSE response.
+
+Note: SSE actions use `ResponseItem` instead of `Response`. `static Response` is ignored on SSE actions.
 
 ## Error Handling
 
