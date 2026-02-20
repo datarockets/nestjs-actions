@@ -1,11 +1,25 @@
-import { Controller, Get, Post, Patch, Delete, Sse, Req, Res } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Sse,
+  Req,
+  Res,
+} from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { Request, Response as ExpressResponse } from 'express';
 import { z } from 'zod';
-import { getActionMeta, isActionClass, ActionMeta } from './action.decorator';
+import {
+  getActionMeta,
+  isActionClass,
+  ActionMeta,
+  OpenApiResponses,
+} from './action.decorator';
 import { BaseAction } from './base-action';
 import { Response } from './response';
-import { runBeforeHooks } from './before.decorator';
+import { getBeforeHookResponses, runBeforeHooks } from './before.decorator';
 import { singularize } from './singularize';
 
 type ActionModule = Record<string, any>;
@@ -169,16 +183,139 @@ interface SpecQueryParameter {
 
 type SpecParameter = SpecPathParameter | SpecQueryParameter;
 
+interface SpecMediaType {
+  schema: Record<string, unknown>;
+}
+
+interface SpecResponse {
+  description?: string;
+  content?: {
+    'application/json': SpecMediaType;
+  };
+}
+
 interface SpecPathOperation {
   operationId: string;
   parameters?: SpecParameter[];
-  responses: Record<string, { description: string }>;
+  responses: Record<string, SpecResponse>;
 }
 
 type SpecPaths = Record<string, Record<string, SpecPathOperation>>;
 
+interface SpecComponents {
+  schemas: Record<string, Record<string, unknown>>;
+}
+
 export interface Spec {
   paths: SpecPaths;
+  components?: SpecComponents;
+}
+
+function responseSchema(schema: z.ZodType): {
+  schema: Record<string, unknown>;
+  description?: string;
+  referencedIds: string[];
+} {
+  const meta = z.globalRegistry.get(schema) as
+    | { id?: string; description?: string }
+    | undefined;
+
+  if (meta?.id) {
+    return {
+      schema: {
+        $ref: `#/components/schemas/${meta.id}`,
+      },
+      description: meta.description,
+      referencedIds: [meta.id],
+    };
+  }
+
+  const jsonSchema = z.toJSONSchema(schema, {
+    io: 'input',
+  }) as Record<string, unknown>;
+
+  const referencedIds: string[] = [];
+  const defs = jsonSchema['$defs'] as Record<string, unknown> | undefined;
+  if (defs) {
+    referencedIds.push(...Object.keys(defs));
+    delete jsonSchema['$defs'];
+  }
+  delete jsonSchema['openapi'];
+  delete jsonSchema['$schema'];
+  delete jsonSchema['description'];
+
+  const raw = JSON.stringify(jsonSchema);
+  const fixed = raw.replace(/#\/\$defs\//g, '#/components/schemas/');
+
+  return {
+    schema: JSON.parse(fixed) as Record<string, unknown>,
+    description: meta?.description,
+    referencedIds,
+  };
+}
+
+function operationResponses(actionClass: new () => BaseAction): {
+  responses: Record<string, SpecResponse>;
+  referencedSchemaIds: string[];
+} {
+  const action = new actionClass();
+  const beforeResponses = getBeforeHookResponses(action);
+  const actionResponses = getActionMeta(actionClass).openapi?.responses;
+
+  const staticResponseSchema = (actionClass as any).Response as
+    | z.ZodType
+    | undefined;
+  let staticResponse: OpenApiResponses | undefined;
+  if (staticResponseSchema) {
+    const meta = z.globalRegistry.get(staticResponseSchema) as
+      | { openapi?: { response?: { status?: number } } }
+      | undefined;
+    const status = meta?.openapi?.response?.status ?? 200;
+    staticResponse = { [status]: staticResponseSchema };
+  }
+
+  const mergedResponses = [
+    ...beforeResponses,
+    ...(actionResponses ? [actionResponses] : []),
+    ...(staticResponse ? [staticResponse] : []),
+  ].reduce(
+    (acc, responses) => ({ ...acc, ...responses }),
+    {} as OpenApiResponses,
+  );
+
+  const entries = Object.entries(mergedResponses);
+  if (entries.length === 0) {
+    return {
+      responses: {},
+      referencedSchemaIds: [],
+    };
+  }
+
+  const referencedSchemaIds: string[] = [];
+  const responses: Record<string, SpecResponse> = {};
+  for (const [status, schema] of entries) {
+    const schemaSpec = responseSchema(schema);
+    referencedSchemaIds.push(...schemaSpec.referencedIds);
+
+    const response: SpecResponse = {
+      content: {
+        'application/json': {
+          schema: schemaSpec.schema,
+        },
+      },
+    };
+
+    if (schemaSpec.description) {
+      response.description = schemaSpec.description;
+    }
+
+    responses[status] = response;
+  }
+
+  return {
+    responses,
+    referencedSchemaIds,
+  };
 }
 
 function pathParameters(
@@ -261,7 +398,10 @@ function create(routes: RouteNode[], actionsMap?: ActionModule) {
 
           specEntries.push({
             path: toOpenApiPath(actionPath),
-            method: meta.method.toUpperCase() === 'SSE' ? 'get' : meta.method.toLowerCase(),
+            method:
+              meta.method.toUpperCase() === 'SSE'
+                ? 'get'
+                : meta.method.toLowerCase(),
             operationId,
             actionClass: ActionClass,
           });
@@ -291,14 +431,17 @@ function create(routes: RouteNode[], actionsMap?: ActionModule) {
     spec(options?: { prefix?: string }): Spec {
       const prefix = options?.prefix || '';
       const paths: SpecPaths = {};
+      const usedSchemaIds = new Set<string>();
       for (const entry of specEntries) {
         const path = prefix ? `${prefix}${entry.path}` : entry.path;
         if (!paths[path]) paths[path] = {};
+        const specResponses = operationResponses(entry.actionClass);
+        for (const schemaId of specResponses.referencedSchemaIds) {
+          usedSchemaIds.add(schemaId);
+        }
         const operation: SpecPathOperation = {
           operationId: entry.operationId,
-          responses: {
-            '200': { description: 'Successful response' },
-          },
+          responses: specResponses.responses,
         };
         const params: SpecParameter[] = [
           ...pathParameters(path, entry.actionClass),
@@ -309,7 +452,35 @@ function create(routes: RouteNode[], actionsMap?: ActionModule) {
         }
         paths[path][entry.method] = operation;
       }
-      return { paths };
+
+      if (usedSchemaIds.size === 0) {
+        return { paths };
+      }
+
+      const globalSchemas = (
+        z.toJSONSchema(z.globalRegistry, {
+          io: 'input',
+        }) as { schemas?: Record<string, Record<string, unknown>> }
+      ).schemas;
+
+      const schemas: Record<string, Record<string, unknown>> = {};
+      for (const schemaId of usedSchemaIds) {
+        const schema = globalSchemas?.[schemaId];
+        if (schema) {
+          schemas[schemaId] = schema;
+        }
+      }
+
+      if (Object.keys(schemas).length === 0) {
+        return { paths };
+      }
+
+      return {
+        paths,
+        components: {
+          schemas,
+        },
+      };
     },
   };
 }

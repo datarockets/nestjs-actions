@@ -340,39 +340,93 @@ export class ShowAction extends BaseAction {
 }
 ```
 
-## Scalar UI
+## OpenAPI spec
 
-Serve an interactive API documentation page powered by Scalar (loaded from CDN). The spec is generated from your actions routes.
+It is possible to generate OpenAPI 3.2 spec for actions.
+
+### Describing responses
+
+You can specify reponses in `Action` and `Before` decorators:
 
 ```ts
-import { ScalarModule } from 'src/lib/actions';
-import { api } from './api/api.module';
+import { UnauthorizedError } from 'src/lib/actions/responses';
 
-@Module({
-  imports: [ScalarModule.forRoot({ spec: api.spec() })],
+@Action({})
+export abstract class ApiAction extends BaseAction {
+  @Before({
+    openapi: {
+      responses: {
+        401: UnautorizedError.Schema,
+      },
+    },
+  })
+  authorize() {
+    if (!this.currentUser) {
+      return new UnauthorizedError();
+    }
+  }
+
+  get currentUser() {
+    // ...
+  }
+}
+```
+
+Inherited actions don't need to repeat errors from before hooks from parent classes, it will be inferred automatically.
+
+```ts
+import * as data from 'src/api/data';
+
+@Action({
+  openapi: {
+    responses: {
+      200: data.User,
+    },
+  },
 })
-export class AppModule {}
+export class ShowAction extends ApiAction {
+  exec() {
+    return new Ok({ name: this.currentUser.name });
+  }
+}
 ```
 
-This exposes:
+Response schemas are emitted inline by default. If a schema is registered in the global zod registry with an `id` (for example `data.User = z.object(...).meta({ id: 'core.User' })`), the generated response uses a `$ref` to `#/components/schemas/core.User`.
 
-- `GET /docs` — Scalar API reference page
-- `GET /spec.json` — OpenAPI JSON spec
-
-Paths are configurable:
+The response `description` in the generated spec is taken from the zod schema's `.meta({ description: "..." })`. If no description is provided, the field is omitted. Actions without any declared responses produce an empty `responses` object.
 
 ```ts
-ScalarModule.forRoot({
-  spec: api.spec(),
-  docsPath: 'api-docs',
-  specPath: 'openapi.json',
-});
+@Action({
+  openapi: {
+    responses: {
+      201: z
+        .object({ id: z.string() })
+        .meta({ description: 'Created user' }),
+    },
+  },
+})
+export class CreateAction extends ApiAction {
+  exec() {
+    return new Response({ status: 201, body: { id: '1' } });
+  }
+}
 ```
 
-The `spec()` method accepts an optional `prefix` to prepend to all paths:
+Alternatively, you could define static `Response` field in an action:
 
 ```ts
-api.spec({ prefix: '/api/v1' });
+@Action({})
+export class ShowAction extends ApiAction {
+  static Response = z
+    .object({
+      name: z.string(),
+    })
+    .meta({ openapi: { response: { status: 200 } } });
+
+  exec() {
+    return Ok.render(ShowAction.Response, { name: this.currentUser.name });
+  }
+}
 ```
 
 ### Path Parameters
@@ -415,6 +469,41 @@ export class IndexAction extends BaseAction {
 ```
 
 This produces two query parameters: `page` (optional, `type: "number"`) and `limit` (required, `type: "number"`).
+
+### Scalar UI
+
+Serve an interactive API documentation page powered by Scalar (loaded from CDN). The spec is generated from your actions routes.
+
+```ts
+import { ScalarModule } from 'src/lib/actions';
+import { api } from './api/api.module';
+
+@Module({
+  imports: [ScalarModule.forRoot({ spec: api.spec() })],
+})
+export class AppModule {}
+```
+
+This exposes:
+
+- `GET /docs` — Scalar API reference page
+- `GET /spec.json` — OpenAPI JSON spec
+
+Paths are configurable:
+
+```ts
+ScalarModule.forRoot({
+  spec: api.spec(),
+  docsPath: 'api-docs',
+  specPath: 'openapi.json',
+});
+```
+
+The `spec()` method accepts an optional `prefix` to prepend to all paths:
+
+```ts
+api.spec({ prefix: '/api/v1' });
+```
 
 ## Server-Sent Events (SSE)
 

@@ -3,7 +3,14 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { z } from 'zod';
-import { Action, Before, BaseAction, Response, router } from './index';
+import {
+  Action,
+  Before,
+  BaseAction,
+  Response,
+  router,
+  NotFoundError,
+} from './index';
 
 @Action({})
 class IndexAction extends BaseAction {
@@ -247,7 +254,7 @@ describe('router', () => {
         schema: { type: 'string' },
       });
       const ok = {
-        responses: { '200': { description: 'Successful response' } },
+        responses: {},
       };
 
       expect(result.spec()).toEqual({
@@ -301,7 +308,7 @@ describe('router', () => {
         schema: { type: 'string' },
       });
       const ok = {
-        responses: { '200': { description: 'Successful response' } },
+        responses: {},
       };
 
       expect(result.spec()).toEqual({
@@ -341,7 +348,7 @@ describe('router', () => {
       ]);
 
       const ok = {
-        responses: { '200': { description: 'Successful response' } },
+        responses: {},
       };
       const spec = result.spec();
       expect(spec.paths['/threads/{id}']).toEqual({
@@ -388,7 +395,7 @@ describe('router', () => {
       ]);
 
       const ok = {
-        responses: { '200': { description: 'Successful response' } },
+        responses: {},
       };
       const spec = result.spec();
       expect(spec.paths['/items']).toEqual({
@@ -435,6 +442,288 @@ describe('router', () => {
       const spec = result.spec();
       expect(spec.paths['/threads']).toBeDefined();
       expect(spec.paths['/threads/{threadId}/messages']).toBeDefined();
+    });
+
+    it('renders inline response schemas for non-registered zod schemas', () => {
+      @Action({
+        openapi: {
+          responses: {
+            200: z.object({
+              name: z.string(),
+            }),
+          },
+        },
+      })
+      class InlineResponseAction extends BaseAction {
+        exec() {
+          return { name: 'thread' };
+        }
+      }
+
+      const result = router.create([
+        router.path('inline', { to: { InlineResponseAction } }),
+      ]);
+      const spec = result.spec();
+
+      expect(spec.paths['/inline']).toEqual({
+        get: {
+          operationId: 'inline.InlineResponse',
+          responses: {
+            '200': {
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      name: { type: 'string' },
+                    },
+                    required: ['name'],
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+      expect(spec.components).toBeUndefined();
+    });
+
+    it('renders response schemas as refs for globally registered zod schemas', () => {
+      @Action({
+        openapi: {
+          responses: {
+            404: NotFoundError.Schema,
+          },
+        },
+      })
+      class RefResponseAction extends BaseAction {
+        exec() {
+          return {};
+        }
+      }
+
+      const result = router.create([
+        router.path('missing', { to: { RefResponseAction } }),
+      ]);
+      const spec = result.spec();
+
+      expect(spec.paths['/missing']?.get?.responses['404']).toEqual({
+        content: {
+          'application/json': {
+            schema: {
+              $ref: '#/components/schemas/errors.NotFoundError',
+            },
+          },
+        },
+      });
+      expect(spec.components?.schemas['errors.NotFoundError']).toBeDefined();
+    });
+
+    it('includes static Response schema with status from meta', () => {
+      @Action({})
+      class StaticResponseAction extends BaseAction {
+        static readonly Response = z
+          .object({
+            name: z.string(),
+          })
+          .meta({ openapi: { response: { status: 200 } } });
+
+        exec() {
+          return { name: 'test' };
+        }
+      }
+
+      const result = router.create([
+        router.path('static', { to: { StaticResponseAction } }),
+      ]);
+      const spec = result.spec();
+
+      expect(spec.paths['/static']?.get?.responses['200']).toEqual({
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                name: { type: 'string' },
+              },
+              required: ['name'],
+            },
+          },
+        },
+      });
+    });
+
+    it('uses $ref for static Response with registered nested schemas', () => {
+      const NestedSchema = z
+        .object({ value: z.number() })
+        .meta({ id: 'test.Nested' });
+
+      @Action({})
+      class NestedRefAction extends BaseAction {
+        static readonly Response = z
+          .object({ nested: NestedSchema })
+          .meta({ openapi: { response: { status: 200 } } });
+
+        exec() {
+          return { nested: { value: 1 } };
+        }
+      }
+
+      const result = router.create([
+        router.path('nested', { to: { NestedRefAction } }),
+      ]);
+      const spec = result.spec();
+
+      expect(
+        spec.paths['/nested']?.get?.responses['200']?.content?.[
+          'application/json'
+        ].schema,
+      ).toEqual({
+        type: 'object',
+        properties: {
+          nested: { $ref: '#/components/schemas/test.Nested' },
+        },
+        required: ['nested'],
+      });
+      expect(spec.components?.schemas['test.Nested']).toBeDefined();
+    });
+
+    it('defaults to status 200 when static Response has no status in meta', () => {
+      @Action({})
+      class DefaultStatusAction extends BaseAction {
+        static readonly Response = z.object({ ok: z.boolean() });
+
+        exec() {
+          return { ok: true };
+        }
+      }
+
+      const result = router.create([
+        router.path('default-status', { to: { DefaultStatusAction } }),
+      ]);
+      const spec = result.spec();
+
+      expect(
+        spec.paths['/default-status']?.get?.responses['200'],
+      ).toBeDefined();
+      expect(
+        spec.paths['/default-status']?.get?.responses['200']?.content?.[
+          'application/json'
+        ],
+      ).toBeDefined();
+    });
+
+    it('merges static Response with before hook responses', () => {
+      @Action({ abstract: true })
+      class HookParent extends BaseAction {
+        @Before({
+          openapi: {
+            responses: {
+              401: z.object({ code: z.literal('unauthorized') }),
+            },
+          },
+        })
+        authenticate() {}
+      }
+
+      @Action({})
+      class MergedAction extends HookParent {
+        static readonly Response = z
+          .object({ data: z.string() })
+          .meta({ openapi: { response: { status: 200 } } });
+
+        exec() {
+          return { data: 'hello' };
+        }
+      }
+
+      const result = router.create([
+        router.path('merged', { to: { MergedAction } }),
+      ]);
+      const spec = result.spec();
+      const responses = spec.paths['/merged']?.get?.responses;
+
+      expect(responses?.['200']).toBeDefined();
+      expect(responses?.['401']).toBeDefined();
+    });
+
+    it('includes before hook response schemas from parent actions', () => {
+      @Action({ abstract: true })
+      class ParentAction extends BaseAction {
+        @Before({
+          openapi: {
+            responses: {
+              401: z.object({
+                code: z.literal('unauthorized'),
+              }),
+            },
+          },
+        })
+        authenticate() {}
+      }
+
+      @Action({})
+      class ChildAction extends ParentAction {
+        exec() {
+          return {};
+        }
+      }
+
+      const result = router.create([
+        router.path('protected', { to: { ChildAction } }),
+      ]);
+      const spec = result.spec();
+
+      expect(spec.paths['/protected']?.get?.responses['401']).toEqual({
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                code: { type: 'string', const: 'unauthorized' },
+              },
+              required: ['code'],
+            },
+          },
+        },
+      });
+    });
+
+    it('uses description from zod schema meta', () => {
+      @Action({
+        openapi: {
+          responses: {
+            201: z
+              .object({ id: z.string() })
+              .meta({ description: 'Created user' }),
+          },
+        },
+      })
+      class DescribedAction extends BaseAction {
+        exec() {
+          return { id: '1' };
+        }
+      }
+
+      const result = router.create([
+        router.path('described', { to: { DescribedAction } }),
+      ]);
+      const spec = result.spec();
+
+      expect(spec.paths['/described']?.get?.responses['201']).toEqual({
+        description: 'Created user',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+              },
+              required: ['id'],
+            },
+          },
+        },
+      });
     });
   });
 
