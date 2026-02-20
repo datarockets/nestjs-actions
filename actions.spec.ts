@@ -347,8 +347,14 @@ describe('router', () => {
         router.resources('threads', { to: { TypedShowAction } }),
       ]);
 
-      const ok = {
-        responses: {},
+      const inputErrorResponse = {
+        content: {
+          'application/json': {
+            schema: {
+              $ref: '#/components/schemas/errors.InputError',
+            },
+          },
+        },
       };
       const spec = result.spec();
       expect(spec.paths['/threads/{id}']).toEqual({
@@ -362,7 +368,7 @@ describe('router', () => {
               schema: { type: 'number' },
             },
           ],
-          ...ok,
+          responses: { '422': inputErrorResponse },
         },
       });
     });
@@ -394,8 +400,14 @@ describe('router', () => {
         router.resources('items', { to: { QueryIndexAction } }),
       ]);
 
-      const ok = {
-        responses: {},
+      const inputErrorResponse = {
+        content: {
+          'application/json': {
+            schema: {
+              $ref: '#/components/schemas/errors.InputError',
+            },
+          },
+        },
       };
       const spec = result.spec();
       expect(spec.paths['/items']).toEqual({
@@ -415,7 +427,7 @@ describe('router', () => {
               schema: { type: 'number' },
             },
           ],
-          ...ok,
+          responses: { '422': inputErrorResponse },
         },
       });
     });
@@ -615,7 +627,7 @@ describe('router', () => {
 
     it('merges static Response with before hook responses', () => {
       @Action({ abstract: true })
-      class HookParent extends BaseAction {
+      abstract class HookParent extends BaseAction {
         @Before({
           openapi: {
             responses: {
@@ -649,7 +661,7 @@ describe('router', () => {
 
     it('includes before hook response schemas from parent actions', () => {
       @Action({ abstract: true })
-      class ParentAction extends BaseAction {
+      abstract class ParentAction extends BaseAction {
         @Before({
           openapi: {
             responses: {
@@ -758,7 +770,7 @@ describe('router', () => {
 
     it('merges ResponseItem with before hook responses for SSE actions', () => {
       @Action({ abstract: true })
-      class SseParent extends BaseAction {
+      abstract class SseParent extends BaseAction {
         @Before({
           openapi: {
             responses: {

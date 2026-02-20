@@ -606,11 +606,21 @@ Note: SSE actions use `ResponseItem` instead of `Response`. `static Response` is
 
 ## Error Handling
 
-`ZodError` exceptions thrown from actions (e.g., from `params`, `body`, or `query` getters using `z.parse()`) are automatically caught and returned as a `422` response with an `input-error` code and structured validation details:
+`ZodError` exceptions thrown from actions (e.g., from `params`, `body`, or `query` getters using `z.parse()`) are automatically caught and returned as a `422` response with an `input-error` code and a flat array of validation issues:
 
 ```json
 {
   "code": "input-error",
-  "details": { ... }
+  "details": [
+    {
+      "code": "invalid_type",
+      "message": "Expected string, received number",
+      "path": ["name"]
+    }
+  ]
 }
 ```
+
+Each issue contains `code` (Zod issue code), `message` (human-readable description), and `path` (array of field path segments).
+
+When an action defines `static Params`, `static Query`, or `static Request`, a `422` response referencing `InputError.Schema` is automatically included in the generated OpenAPI spec.

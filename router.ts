@@ -20,6 +20,7 @@ import {
 import { BaseAction } from './base-action';
 import { Response } from './response';
 import { getBeforeHookResponses, runBeforeHooks } from './before.decorator';
+import { InputError } from './responses/input-error';
 import { singularize } from './singularize';
 
 type ActionModule = Record<string, any>;
@@ -289,6 +290,10 @@ function operationResponses(
         {} as OpenApiResponses,
       );
 
+      if (hasValidationSchemas(actionClass) && !('422' in mergedResponses)) {
+        mergedResponses['422'] = InputError.Schema;
+      }
+
       const responses: Record<string, SpecResponse> = {};
 
       for (const [status, schema] of Object.entries(mergedResponses)) {
@@ -350,6 +355,10 @@ function operationResponses(
     {} as OpenApiResponses,
   );
 
+  if (hasValidationSchemas(actionClass) && !('422' in mergedResponses)) {
+    mergedResponses['422'] = InputError.Schema;
+  }
+
   const entries = Object.entries(mergedResponses);
   if (entries.length === 0) {
     return {
@@ -383,6 +392,14 @@ function operationResponses(
     responses,
     referencedSchemaIds,
   };
+}
+
+function hasValidationSchemas(actionClass: new () => BaseAction): boolean {
+  return (
+    'Params' in actionClass ||
+    'Query' in actionClass ||
+    'Request' in actionClass
+  );
 }
 
 function pathParameters(
