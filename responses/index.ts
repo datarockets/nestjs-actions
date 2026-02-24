@@ -4,4 +4,4 @@ export * from './created';
 export * from './input-error';
 export * from './not-found-error';
 export * from './ok';
-export { Response } from '../response';
+export * from './unauthorized-error';

@@ -18,7 +18,7 @@ export class BadRequestError extends Response {
       body: {
         code: 'bad-request',
         message,
-      },
+      } as BadRequestError['body'],
     });
   }
 }

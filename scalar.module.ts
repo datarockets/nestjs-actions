@@ -5,15 +5,46 @@ export interface ScalarOptions {
   spec: Spec;
   docsPath?: string;
   specPath?: string;
+  title?: string;
+  scalar?: any;
 }
-
-const SCALAR_OPTIONS = 'SCALAR_OPTIONS';
 
 @Module({})
 export class ScalarModule {
   static forRoot(options: ScalarOptions): DynamicModule {
     const docsPath = options.docsPath ?? 'docs';
     const specPath = options.specPath ?? 'spec.json';
+    const title = options.title ?? 'API Reference';
+    const scalarOptions = {
+      url: `/${specPath}`,
+      agent: {
+        disabled: true,
+      },
+      hideClientButton: true,
+      hiddenClients: {
+        c: ['libcurl'],
+        clojure: ['clj_http'],
+        csharp: ['httpclient', 'restsharp'],
+        dart: ['http'],
+        fsharp: ['httpclient'],
+        go: ['native'],
+        java: ['asynchttp', 'nethttp', 'okhttp', 'unirest'],
+        js: ['jquery', 'ofetch', 'xhr'],
+        kotlin: ['okhttp'],
+        node: ['axios', 'fetch', 'ofetch', 'undici'],
+        objc: ['nsurlsession'],
+        ocaml: ['cohttp'],
+        php: ['curl', 'guzzle'],
+        powershell: ['restmethod', 'webrequest'],
+        python: ['httpx_async', 'httpx_sync', 'python3', 'requests'],
+        r: ['httr'],
+        ruby: ['native'],
+        rust: ['reqwest'],
+        shell: ['wget'],
+        swift: ['nsurlsession'],
+      },
+      ...(options.scalar || {}),
+    };
 
     @Controller()
     class ScalarController {
@@ -33,7 +64,7 @@ export class ScalarModule {
         <!doctype html>
         <html>
           <head>
-            <title>API Reference</title>
+            <title>${title}</title>
             <meta charset="utf-8" />
             <meta
               name="viewport"
@@ -48,36 +79,10 @@ export class ScalarModule {
 
             <!-- Initialize the Scalar API Reference -->
             <script>
-              Scalar.createApiReference('#app', {
-                // The URL of the OpenAPI document
-                url: '/${specPath}',
-                agent: {
-                  disabled: true,
-                },
-                hideClientButton: true,
-                hiddenClients: {
-                  c: ['libcurl'],
-                  clojure: ['clj_http'],
-                  csharp: ['httpclient', 'restsharp'],
-                  dart: ['http'],
-                  fsharp: ['httpclient'],
-                  go: ['native'],
-                  java: ['asynchttp', 'nethttp', 'okhttp', 'unirest'],
-                  js: ['jquery', 'ofetch', 'xhr'],
-                  kotlin: ['okhttp'],
-                  node: ['axios', 'fetch', 'ofetch', 'undici'],
-                  objc: ['nsurlsession'],
-                  ocaml: ['cohttp'],
-                  php: ['curl', 'guzzle'],
-                  powershell: ['restmethod', 'webrequest'],
-                  python: ['httpx_async', 'httpx_sync', 'python3', 'requests'],
-                  r: ['httr'],
-                  ruby: ['native'],
-                  rust: ['reqwest'],
-                  shell: ['wget'],
-                  swift: ['nsurlsession'],
-                }
-              })
+              Scalar.createApiReference(
+                '#app',
+                ${JSON.stringify(scalarOptions)}
+              )
             </script>
           </body>
         </html>`;

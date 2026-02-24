@@ -1,10 +1,12 @@
 import 'reflect-metadata';
 import { z } from 'zod';
+import { SecurityRequirement } from './before.decorator';
 
 const ACTION_METHOD_KEY = 'action:method';
 const ACTION_PATH_KEY = 'action:path';
 const ACTION_ABSTRACT_KEY = 'action:abstract';
 const ACTION_OPENAPI_RESPONSES_KEY = 'action:openapi:responses';
+const ACTION_OPENAPI_SECURITY_KEY = 'action:openapi:security';
 
 export type OpenApiResponses = Record<number, z.ZodType>;
 
@@ -14,6 +16,7 @@ export interface ActionOptions {
   abstract?: boolean;
   openapi?: {
     responses?: OpenApiResponses;
+    security?: SecurityRequirement[];
   };
 }
 
@@ -23,6 +26,7 @@ export interface ActionMeta {
   abstract: boolean;
   openapi?: {
     responses?: OpenApiResponses;
+    security?: SecurityRequirement[];
   };
 }
 
@@ -40,6 +44,11 @@ export function Action(options: ActionOptions): ClassDecorator {
     Reflect.defineMetadata(
       ACTION_OPENAPI_RESPONSES_KEY,
       options.openapi?.responses,
+      target,
+    );
+    Reflect.defineMetadata(
+      ACTION_OPENAPI_SECURITY_KEY,
+      options.openapi?.security,
       target,
     );
 
@@ -70,6 +79,9 @@ export function getActionMeta(target: Function): ActionMeta {
     openapi: {
       responses: Reflect.getMetadata(ACTION_OPENAPI_RESPONSES_KEY, target) as
         | OpenApiResponses
+        | undefined,
+      security: Reflect.getMetadata(ACTION_OPENAPI_SECURITY_KEY, target) as
+        | SecurityRequirement[]
         | undefined,
     },
   };

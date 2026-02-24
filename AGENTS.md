@@ -1,3 +1,5 @@
+See @README.md to understand how actions work.
+
 ## Instructions
 
 - After updating code, update README.md if api is changed

@@ -5,10 +5,14 @@ import { Response } from './response';
 const BEFORE_HOOKS_KEY = 'action:before-hooks';
 const BEFORE_HOOK_OPENAPI_RESPONSES_KEY =
   'action:before-hook:openapi:responses';
+const BEFORE_HOOK_OPENAPI_SECURITY_KEY = 'action:before-hook:openapi:security';
+
+export type SecurityRequirement = Record<string, string[]>;
 
 export interface BeforeOptions {
   openapi?: {
     responses?: Record<number, z.ZodType>;
+    security?: SecurityRequirement[];
   };
 }
 
@@ -22,6 +26,13 @@ export function Before(options?: BeforeOptions): MethodDecorator {
     Reflect.defineMetadata(
       BEFORE_HOOK_OPENAPI_RESPONSES_KEY,
       options?.openapi?.responses,
+      target,
+      propertyKey,
+    );
+
+    Reflect.defineMetadata(
+      BEFORE_HOOK_OPENAPI_SECURITY_KEY,
+      options?.openapi?.security,
       target,
       propertyKey,
     );
@@ -74,6 +85,33 @@ export function getBeforeHookResponses(
   }
 
   return responses.flat();
+}
+
+export function getBeforeHookSecurity(
+  instance: object,
+): SecurityRequirement[] | undefined {
+  const chain: (SecurityRequirement[] | undefined)[] = [];
+  let proto = Object.getPrototypeOf(instance);
+
+  while (proto && proto !== Object.prototype) {
+    const hooks: string[] =
+      Reflect.getOwnMetadata(BEFORE_HOOKS_KEY, proto) || [];
+
+    for (const hook of hooks) {
+      const hookSecurity = Reflect.getOwnMetadata(
+        BEFORE_HOOK_OPENAPI_SECURITY_KEY,
+        proto,
+        hook,
+      ) as SecurityRequirement[] | undefined;
+      if (hookSecurity) {
+        chain.unshift(hookSecurity);
+      }
+    }
+
+    proto = Object.getPrototypeOf(proto);
+  }
+
+  return chain.length > 0 ? chain[chain.length - 1] : undefined;
 }
 
 export async function runBeforeHooks(

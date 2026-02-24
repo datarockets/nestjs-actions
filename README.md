@@ -356,7 +356,7 @@ export abstract class ApiAction extends BaseAction {
   @Before({
     openapi: {
       responses: {
-        401: UnautorizedError.Schema,
+        401: UnauthorizedError.Schema,
       },
     },
   })
@@ -506,6 +506,63 @@ export class IndexAction extends BaseAction {
 
 This produces two query parameters: `page` (optional, `type: "number"`) and `limit` (required, `type: "number"`).
 
+### Security
+
+Use the `openapi.security` option in `@Before` or `@Action` to declare security requirements on operations. The value follows the OpenAPI [Security Requirement Object](https://spec.openapis.org/oas/v3.1.0#security-requirement-object) format — an array of objects where each key is a scheme name and the value is a list of scopes:
+
+```ts
+import { UnauthorizedError } from 'src/lib/actions/responses';
+
+@Action({ abstract: true })
+export abstract class ApiAction extends BaseAction {
+  @Before({
+    openapi: {
+      responses: { 401: UnauthorizedError.Schema },
+      security: [{ oauth2: ['openid', 'profile'] }],
+    },
+  })
+  authorize() {
+    if (!this.currentUser) {
+      return new UnauthorizedError();
+    }
+  }
+}
+```
+
+Inherited actions automatically inherit security from parent `@Before` hooks. If a child class defines its own `openapi.security` in a `@Before` hook, it overrides the parent's security. Security defined in `@Action` overrides `@Before` security:
+
+```ts
+@Action({
+  openapi: {
+    security: [{ apiKey: [] }],
+  },
+})
+export class PublicAction extends ApiAction {
+  exec() {
+    return {};
+  }
+}
+```
+
+To include `securitySchemes` in the generated spec, pass them to `spec()`:
+
+```ts
+api.spec({
+  prefix: '/api',
+  securitySchemes: {
+    oauth2: {
+      type: 'oauth2',
+      flows: {
+        authorizationCode: {
+          authorizationUrl: 'https://example.com/authorize',
+          tokenUrl: 'https://example.com/token',
+        },
+      },
+    },
+  },
+});
+```
+
 ### Scalar UI
 
 Serve an interactive API documentation page powered by Scalar (loaded from CDN). The spec is generated from your actions routes.
@@ -525,13 +582,17 @@ This exposes:
 - `GET /docs` — Scalar API reference page
 - `GET /spec.json` — OpenAPI JSON spec
 
-Paths are configurable:
+Paths, title, and Scalar options are configurable:
 
 ```ts
 ScalarModule.forRoot({
   spec: api.spec(),
   docsPath: 'api-docs',
   specPath: 'openapi.json',
+  title: 'My API',
+  scalar: {
+    theme: 'purple',
+  },
 });
 ```
 

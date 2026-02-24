@@ -19,7 +19,12 @@ import {
 } from './action.decorator';
 import { BaseAction } from './base-action';
 import { Response } from './response';
-import { getBeforeHookResponses, runBeforeHooks } from './before.decorator';
+import {
+  SecurityRequirement,
+  getBeforeHookResponses,
+  getBeforeHookSecurity,
+  runBeforeHooks,
+} from './before.decorator';
 import { InputError } from './responses/input-error';
 import { singularize } from './singularize';
 
@@ -204,12 +209,14 @@ interface SpecPathOperation {
   parameters?: SpecParameter[];
   requestBody?: SpecRequestBody;
   responses: Record<string, SpecResponse>;
+  security?: SecurityRequirement[];
 }
 
 type SpecPaths = Record<string, Record<string, SpecPathOperation>>;
 
 interface SpecComponents {
-  schemas: Record<string, Record<string, unknown>>;
+  schemas?: Record<string, Record<string, unknown>>;
+  securitySchemes?: Record<string, Record<string, unknown>>;
 }
 
 export interface Spec {
@@ -394,6 +401,19 @@ function operationResponses(
   };
 }
 
+function operationSecurity(
+  actionClass: new () => BaseAction,
+): SecurityRequirement[] | undefined {
+  const action = new actionClass();
+  const actionMeta = getActionMeta(actionClass);
+
+  if (actionMeta.openapi?.security) {
+    return actionMeta.openapi.security;
+  }
+
+  return getBeforeHookSecurity(action);
+}
+
 function hasValidationSchemas(actionClass: new () => BaseAction): boolean {
   return (
     'Params' in actionClass ||
@@ -544,7 +564,10 @@ function create(routes: RouteNode[], actionsMap?: ActionModule) {
       return controllers;
     },
 
-    spec(options?: { prefix?: string }): Spec {
+    spec(options?: {
+      prefix?: string;
+      securitySchemes?: Record<string, Record<string, unknown>>;
+    }): Spec {
       const prefix = options?.prefix || '';
       const paths: SpecPaths = {};
       const usedSchemaIds = new Set<string>();
@@ -579,11 +602,17 @@ function create(routes: RouteNode[], actionsMap?: ActionModule) {
         if (specRequestBody.requestBody) {
           operation.requestBody = specRequestBody.requestBody;
         }
+        const security = operationSecurity(entry.actionClass);
+        if (security) {
+          operation.security = security;
+        }
         paths[path][entry.method] = operation;
       }
 
-      if (usedSchemaIds.size === 0) {
-        return { paths };
+      const components: SpecComponents = {};
+
+      if (options?.securitySchemes) {
+        components.securitySchemes = options.securitySchemes;
       }
 
       const globalSchemas = (
@@ -625,16 +654,15 @@ function create(routes: RouteNode[], actionsMap?: ActionModule) {
         schemas[id] = parsed;
       }
 
-      if (Object.keys(schemas).length === 0) {
+      if (Object.keys(schemas).length > 0) {
+        components.schemas = schemas;
+      }
+
+      if (Object.keys(components).length === 0) {
         return { paths };
       }
 
-      return {
-        paths,
-        components: {
-          schemas,
-        },
-      };
+      return { paths, components };
     },
   };
 }
