@@ -69,7 +69,7 @@ async function streamSseResponse(
     'private, no-cache, no-store, must-revalidate',
   );
   res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expire', '0');
+  res.setHeader('Expires', '0');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
 
