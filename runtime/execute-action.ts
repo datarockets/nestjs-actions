@@ -39,8 +39,10 @@ export async function executeActionRequest(
 }
 
 function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
+  const iterableLike = value as { [Symbol.asyncIterator]?: unknown } | null;
   return (
-    value != null && typeof (value as any)[Symbol.asyncIterator] === 'function'
+    iterableLike != null &&
+    typeof iterableLike[Symbol.asyncIterator] === 'function'
   );
 }
 

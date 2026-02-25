@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import { App } from 'supertest/types';
 
 import { Action, BaseAction, Before, Response } from '../../index';
+import type { ActionControllerClass } from '../../runtime/create-controller';
 
 @Action({})
 export class IndexAction extends BaseAction {
@@ -66,7 +67,7 @@ export class MessageCreateAction extends BaseAction {
 export const messages = { MessageIndexAction, MessageCreateAction };
 
 export async function createTestApp(
-  controllers: any[],
+  controllers: ActionControllerClass[],
 ): Promise<INestApplication<App>> {
   const moduleRef = await Test.createTestingModule({
     controllers,

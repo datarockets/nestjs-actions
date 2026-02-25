@@ -4,7 +4,7 @@ import { Response } from './response';
 
 @Injectable()
 export class ApplicationInterceptor {
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const response = context.switchToHttp().getResponse();
 
     return next.handle().pipe(

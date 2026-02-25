@@ -10,11 +10,11 @@ export abstract class BaseAction {
     return this.request.headers;
   }
 
-  get params(): Record<string, any> {
+  get params(): Request['params'] {
     return this.request.params;
   }
 
-  get query(): Record<string, any> {
+  get query(): Request['query'] {
     return this.request.query;
   }
 
@@ -22,5 +22,5 @@ export abstract class BaseAction {
     return this.request.body;
   }
 
-  abstract exec(): Promise<any> | any;
+  abstract exec(): Promise<unknown> | unknown;
 }

@@ -118,9 +118,10 @@ export async function runBeforeHooks(
   instance: object,
 ): Promise<Response | void> {
   const hooks = getBeforeHooks(instance);
+  const callableInstance = instance as Record<string, () => unknown>;
 
   for (const hook of hooks) {
-    const result = await (instance as any)[hook]();
+    const result = await callableInstance[hook]();
     if (result instanceof Response) {
       return result;
     }

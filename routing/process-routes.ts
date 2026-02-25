@@ -1,12 +1,13 @@
 import { getActionMeta, isActionClass } from '../action.decorator';
 import { BaseAction } from '../base-action';
 import type { SpecEntry } from '../openapi/types';
+import type { ActionControllerClass } from '../runtime/create-controller';
 import { createControllerForAction } from '../runtime/create-controller';
 import { singularize } from '../singularize';
 import type { ActionModule, RouteNode } from './types';
 
 interface ProcessedRoutes {
-  controllers: any[];
+  controllers: ActionControllerClass[];
   specEntries: SpecEntry[];
 }
 
@@ -31,7 +32,7 @@ export function processRoutes(
   nodes: RouteNode[],
   actionsMap?: ActionModule,
 ): ProcessedRoutes {
-  const controllers: any[] = [];
+  const controllers: ActionControllerClass[] = [];
   const specEntries: SpecEntry[] = [];
 
   function visitRoutes(
@@ -40,8 +41,12 @@ export function processRoutes(
     currentMap?: ActionModule,
   ) {
     for (const node of currentNodes) {
+      const moduleFromMap = currentMap?.[node.path];
       const resolvedModule =
-        node.module || (currentMap ? currentMap[node.path] : undefined);
+        node.module ??
+        (typeof moduleFromMap === 'object' && moduleFromMap !== null
+          ? (moduleFromMap as ActionModule)
+          : undefined);
       const fullPath = basePath ? `${basePath}/${node.path}` : node.path;
 
       if (resolvedModule) {

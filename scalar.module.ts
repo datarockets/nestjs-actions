@@ -6,7 +6,7 @@ export interface ScalarOptions {
   docsPath?: string;
   specPath?: string;
   title?: string;
-  scalar?: any;
+  scalar?: Record<string, unknown>;
 }
 
 @Module({})

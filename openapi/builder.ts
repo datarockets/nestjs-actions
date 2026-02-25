@@ -20,6 +20,29 @@ import {
   SpecResponse,
 } from './types';
 
+type ActionClassWithSchemas = (new () => BaseAction) & {
+  Params?: z.ZodType;
+  Query?: z.ZodType;
+  Request?: z.ZodType;
+  Response?: z.ZodType;
+  ResponseItem?: z.ZodType;
+};
+
+interface ObjectJsonSchema {
+  properties?: Record<string, Record<string, unknown>>;
+  required?: string[];
+}
+
+function withSchemas(
+  actionClass: new () => BaseAction,
+): ActionClassWithSchemas {
+  return actionClass as ActionClassWithSchemas;
+}
+
+function objectJsonSchema(schema: z.ZodType): ObjectJsonSchema {
+  return z.toJSONSchema(schema, { io: 'input' }) as ObjectJsonSchema;
+}
+
 function responseSchema(schema: z.ZodType): {
   schema: Record<string, unknown>;
   description?: string;
@@ -71,15 +94,14 @@ function operationResponses(
   referencedSchemaIds: string[];
 } {
   const action = new actionClass();
+  const actionWithSchemas = withSchemas(actionClass);
   const beforeResponses = getBeforeHookResponses(action);
   const actionResponses = getActionMeta(actionClass).openapi?.responses;
 
   let staticResponse: OpenApiResponses | undefined;
 
   if (isSse) {
-    const responseItemSchema = (actionClass as any).ResponseItem as
-      | z.ZodType
-      | undefined;
+    const responseItemSchema = actionWithSchemas.ResponseItem;
 
     if (responseItemSchema) {
       const itemSchemaSpec = responseSchema(responseItemSchema);
@@ -136,9 +158,7 @@ function operationResponses(
       return { responses, referencedSchemaIds };
     }
   } else {
-    const staticResponseSchema = (actionClass as any).Response as
-      | z.ZodType
-      | undefined;
+    const staticResponseSchema = actionWithSchemas.Response;
 
     if (staticResponseSchema) {
       const meta = z.globalRegistry.get(staticResponseSchema) as
@@ -223,13 +243,12 @@ function pathParameters(
   const paramNames = [...openApiPath.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
   if (paramNames.length === 0) return [];
 
-  const paramsSchema = (ActionClass as any).Params;
+  const paramsSchema = withSchemas(ActionClass).Params;
   let schemasByName: Record<string, Record<string, unknown>> = {};
 
   if (paramsSchema) {
-    const jsonSchema = z.toJSONSchema(paramsSchema, { io: 'input' });
-    const properties = (jsonSchema as Record<string, any>).properties || {};
-    schemasByName = properties;
+    const { properties } = objectJsonSchema(paramsSchema);
+    schemasByName = properties ?? {};
   }
 
   return paramNames.map((name) => {
@@ -246,12 +265,10 @@ function pathParameters(
 function queryParameters(
   ActionClass: new () => BaseAction,
 ): SpecQueryParameter[] {
-  const querySchema = (ActionClass as any).Query;
+  const querySchema = withSchemas(ActionClass).Query;
   if (!querySchema) return [];
 
-  const jsonSchema = z.toJSONSchema(querySchema, { io: 'input' });
-  const properties = (jsonSchema as Record<string, any>).properties || {};
-  const required: string[] = (jsonSchema as Record<string, any>).required || [];
+  const { properties = {}, required = [] } = objectJsonSchema(querySchema);
 
   return Object.entries(properties).map(([name, schema]) => ({
     name,
@@ -270,7 +287,7 @@ function operationRequestBody(
 } {
   if (isSse) return { referencedSchemaIds: [] };
 
-  const requestSchema = (actionClass as any).Request as z.ZodType | undefined;
+  const requestSchema = withSchemas(actionClass).Request;
   if (!requestSchema) return { referencedSchemaIds: [] };
 
   const schemaSpec = responseSchema(requestSchema);

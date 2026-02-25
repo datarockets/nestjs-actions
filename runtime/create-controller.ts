@@ -12,12 +12,16 @@ const METHOD_DECORATORS: Record<string, (path?: string) => MethodDecorator> = {
   DELETE: Delete,
 };
 
+export type ActionControllerClass = new (moduleRef: ModuleRef) => {
+  handle(req: Request, res: ExpressResponse): Promise<unknown>;
+};
+
 export function createControllerForAction(
   ActionClass: ActionClass,
   basePath: string,
   meta: ActionMeta,
   routeName: string,
-): any {
+): ActionControllerClass {
   const isSse = meta.method.toUpperCase() === 'SSE';
 
   class ActionController {
@@ -62,5 +66,5 @@ export function createControllerForAction(
     Res({ passthrough: true })(ActionController.prototype, handlerName, 1);
   }
 
-  return ActionController;
+  return ActionController as ActionControllerClass;
 }

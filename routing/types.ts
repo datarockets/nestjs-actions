@@ -1,4 +1,4 @@
-export type ActionModule = Record<string, any>;
+export type ActionModule = Record<string, unknown>;
 
 export interface RouteOptions {
   to: ActionModule;
