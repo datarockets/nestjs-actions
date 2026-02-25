@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { BaseAction } from '../core/base-action';
-
-export type ActionClass = new () => BaseAction;
+import { ActionClass } from '../core/types';
+export type { ActionClass };
 
 export type ActionClassWithSchemas = ActionClass & {
   Params?: z.ZodType;

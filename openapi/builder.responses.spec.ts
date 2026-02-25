@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-import { Action, BaseAction, Before, NotFoundError } from '../index';
+import { Action, BaseAction, Before } from '../index';
+import { NotFoundError } from '../responses';
 import { router } from '../router';
 
 describe('openapi/builder responses', () => {

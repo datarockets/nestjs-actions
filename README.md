@@ -1,8 +1,8 @@
-Actions, a better way to define endpoint handlers in Next.js applications.
+Actions, a better way to define endpoint handlers in Nest.js applications.
 
 ## Quick Start
 
-An Action is a class that is respoinsible for handling HTTP requests in Nest.js application:
+An Action is a class that is responsible for handling HTTP requests in Nest.js application:
 
 ```ts
 // src/api/actions/hello.action.ts

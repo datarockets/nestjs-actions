@@ -8,7 +8,4 @@ export { router } from './router';
 export { ScalarModule } from './scalar.module';
 export * from './application.filter';
 export * from './application.interceptor';
-export { ApplicationError } from './responses/application-error';
-export { BadRequestError } from './responses/bad-request-error';
-export { InputError } from './responses/input-error';
-export { NotFoundError } from './responses/not-found-error';
+
