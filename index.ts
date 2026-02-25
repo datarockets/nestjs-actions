@@ -1,9 +1,9 @@
-export { Action } from './action.decorator';
-export type { ActionOptions } from './action.decorator';
-export { Before } from './before.decorator';
-export type { SecurityRequirement } from './before.decorator';
-export { BaseAction } from './base-action';
-export { Response } from './response';
+export { Action } from './core/action.decorator';
+export type { ActionOptions } from './core/types';
+export { Before } from './core/before.decorator';
+export type { SecurityRequirement } from './core/types';
+export { BaseAction } from './core/base-action';
+export { Response } from './core/response';
 export { router } from './router';
 export { ScalarModule } from './scalar.module';
 export * from './application.filter';

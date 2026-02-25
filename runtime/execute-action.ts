@@ -1,10 +1,8 @@
 import { ModuleRef } from '@nestjs/core';
 import { Request, Response as ExpressResponse } from 'express';
-import { runBeforeHooks } from '../before.decorator';
-import { BaseAction } from '../base-action';
-import { Response } from '../response';
-
-export type ActionClass = new () => BaseAction;
+import { runBeforeHooks } from '../core/before.decorator';
+import { Response } from '../core/response';
+import type { ActionClass } from '../core/types';
 
 export async function executeActionRequest(
   ActionClass: ActionClass,

@@ -1,10 +1,11 @@
 import { z } from 'zod';
-import { getActionMeta, OpenApiResponses } from '../action.decorator';
-import { BaseAction } from '../base-action';
+import { getActionMeta } from '../core/action.decorator';
 import {
   getBeforeHookResponses,
   getBeforeHookSecurity,
-} from '../before.decorator';
+} from '../core/before.decorator';
+import { BaseAction } from '../core/base-action';
+import { OpenApiResponses } from '../core/types';
 import { InputError } from '../responses/input-error';
 import {
   Spec,

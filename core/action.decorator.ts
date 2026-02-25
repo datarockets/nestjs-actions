@@ -1,34 +1,16 @@
 import 'reflect-metadata';
-import { z } from 'zod';
-import { SecurityRequirement } from './before.decorator';
+import {
+  ActionMeta,
+  ActionOptions,
+  OpenApiResponses,
+  SecurityRequirement,
+} from './types';
 
 const ACTION_METHOD_KEY = 'action:method';
 const ACTION_PATH_KEY = 'action:path';
 const ACTION_ABSTRACT_KEY = 'action:abstract';
 const ACTION_OPENAPI_RESPONSES_KEY = 'action:openapi:responses';
 const ACTION_OPENAPI_SECURITY_KEY = 'action:openapi:security';
-
-export type OpenApiResponses = Record<number, z.ZodType>;
-
-export interface ActionOptions {
-  method?: string;
-  path?: string;
-  abstract?: boolean;
-  openapi?: {
-    responses?: OpenApiResponses;
-    security?: SecurityRequirement[];
-  };
-}
-
-export interface ActionMeta {
-  method: string;
-  path: string;
-  abstract: boolean;
-  openapi?: {
-    responses?: OpenApiResponses;
-    security?: SecurityRequirement[];
-  };
-}
 
 const MEMOIZED_GETTERS = ['params', 'query', 'body'];
 

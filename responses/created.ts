@@ -1,4 +1,4 @@
-import { Response } from '../response';
+import { Response } from '../core/response';
 
 export class Created extends Response {
   declare readonly status: 201;

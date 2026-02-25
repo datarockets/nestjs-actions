@@ -1,4 +1,4 @@
-import { Response } from '../response';
+import { Response } from '../core/response';
 
 export class ApplicationError extends Response {
   declare readonly status: 500;

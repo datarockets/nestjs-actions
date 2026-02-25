@@ -1,4 +1,4 @@
-import { Response } from '../response';
+import { Response } from '../core/response';
 import { ApplicationError } from './application-error';
 import { Logger } from '@nestjs/common';
 import { z } from 'zod';

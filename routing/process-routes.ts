@@ -1,5 +1,5 @@
-import { getActionMeta, isActionClass } from '../action.decorator';
-import { BaseAction } from '../base-action';
+import { getActionMeta, isActionClass } from '../core/action.decorator';
+import { BaseAction } from '../core/base-action';
 import type { SpecEntry } from '../openapi/types';
 import type { ActionControllerClass } from '../runtime/create-controller';
 import { createControllerForAction } from '../runtime/create-controller';

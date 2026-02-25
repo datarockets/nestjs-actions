@@ -1,5 +1,5 @@
-import { BaseAction } from '../base-action';
-import { SecurityRequirement } from '../before.decorator';
+import { BaseAction } from '../core/base-action';
+import { SecurityRequirement } from '../core/types';
 
 export interface SpecPathParameter {
   name: string;

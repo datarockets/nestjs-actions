@@ -1,20 +1,12 @@
 import 'reflect-metadata';
 import { z } from 'zod';
 import { Response } from './response';
+import { BeforeOptions, SecurityRequirement } from './types';
 
 const BEFORE_HOOKS_KEY = 'action:before-hooks';
 const BEFORE_HOOK_OPENAPI_RESPONSES_KEY =
   'action:before-hook:openapi:responses';
 const BEFORE_HOOK_OPENAPI_SECURITY_KEY = 'action:before-hook:openapi:security';
-
-export type SecurityRequirement = Record<string, string[]>;
-
-export interface BeforeOptions {
-  openapi?: {
-    responses?: Record<number, z.ZodType>;
-    security?: SecurityRequirement[];
-  };
-}
 
 export function Before(options?: BeforeOptions): MethodDecorator {
   return (target, propertyKey) => {

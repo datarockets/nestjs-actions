@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Response } from '../response';
+import { Response } from '../core/response';
 
 export class BadRequestError extends Response {
   static readonly Schema = z
