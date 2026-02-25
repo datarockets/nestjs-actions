@@ -82,7 +82,6 @@ export function getBeforeHookResponses(
 export function getBeforeHookSecurity(
   instance: object,
 ): SecurityRequirement[] | undefined {
-  const chain: (SecurityRequirement[] | undefined)[] = [];
   let proto = Object.getPrototypeOf(instance);
 
   while (proto && proto !== Object.prototype) {
@@ -96,14 +95,14 @@ export function getBeforeHookSecurity(
         hook,
       ) as SecurityRequirement[] | undefined;
       if (hookSecurity) {
-        chain.unshift(hookSecurity);
+        return hookSecurity;
       }
     }
 
     proto = Object.getPrototypeOf(proto);
   }
 
-  return chain.length > 0 ? chain[chain.length - 1] : undefined;
+  return undefined;
 }
 
 export async function runBeforeHooks(
