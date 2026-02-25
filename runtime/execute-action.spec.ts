@@ -1,5 +1,6 @@
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, NotFoundException } from '@nestjs/common';
 import request from 'supertest';
+import { z } from 'zod';
 
 import { Action, BaseAction, Before, Response } from '../index';
 import { router } from '../router';
@@ -35,10 +36,46 @@ describe('runtime/execute-action', () => {
       }
     }
 
+    @Action({ method: 'SSE', path: 'unknown-error' })
+    class UnknownErrorStreamAction extends BaseAction {
+      async *exec() {
+        throw new Error('SELECT * FROM users -- db connection refused');
+      }
+    }
+
+    @Action({ method: 'SSE', path: 'http-error' })
+    class HttpErrorStreamAction extends BaseAction {
+      async *exec() {
+        throw new NotFoundException('secret-resource-id-12345');
+      }
+    }
+
+    @Action({ method: 'SSE', path: 'zod-error' })
+    class ZodErrorStreamAction extends BaseAction {
+      async *exec() {
+        z.object({ name: z.string() }).parse({ name: 123 });
+      }
+    }
+
+    @Action({ method: 'SSE', path: 'partial-then-error' })
+    class PartialThenErrorStreamAction extends BaseAction {
+      async *exec() {
+        yield { data: { chunk: 1 } };
+        throw new Error('mid-stream failure with internal details');
+      }
+    }
+
     beforeAll(async () => {
       const result = router.create([
         router.path('stream', {
-          to: { StreamAction, ActionResponseStreamAction },
+          to: {
+            StreamAction,
+            ActionResponseStreamAction,
+            UnknownErrorStreamAction,
+            HttpErrorStreamAction,
+            ZodErrorStreamAction,
+            PartialThenErrorStreamAction,
+          },
         }),
       ]);
       app = await createTestApp(result.controllers());
@@ -54,12 +91,12 @@ describe('runtime/execute-action', () => {
       return request(app.getHttpServer()).get('/stream').expect(401);
     });
 
-    it('returns json response when SSE before hook short-circuits', () => {
+    it('returns structured error body when SSE before hook short-circuits without body', () => {
       return request(app.getHttpServer())
         .get('/stream')
         .expect(401)
         .expect('Content-Type', /application\/json/)
-        .expect({});
+        .expect({ code: 'unauthorized' });
     });
 
     it('assigns response on SSE action instances', async () => {
@@ -90,6 +127,50 @@ describe('runtime/execute-action', () => {
         .expect(200);
 
       expect(response.text).toContain('data: {"ok":true}');
+    });
+
+    describe('SSE error sanitization', () => {
+      it('sends generic application-error for unknown errors', async () => {
+        const response = await request(app.getHttpServer())
+          .get('/stream/unknown-error')
+          .expect(200);
+
+        expect(response.text).toContain('event: error');
+        expect(response.text).toContain('data: application-error');
+        expect(response.text).not.toContain('SELECT');
+        expect(response.text).not.toContain('db connection refused');
+      });
+
+      it('sends mapped status code for HttpException errors', async () => {
+        const response = await request(app.getHttpServer())
+          .get('/stream/http-error')
+          .expect(200);
+
+        expect(response.text).toContain('event: error');
+        expect(response.text).toContain('data: not-found');
+        expect(response.text).not.toContain('secret-resource-id-12345');
+      });
+
+      it('sends input-error for ZodError', async () => {
+        const response = await request(app.getHttpServer())
+          .get('/stream/zod-error')
+          .expect(200);
+
+        expect(response.text).toContain('event: error');
+        expect(response.text).toContain('data: input-error');
+      });
+
+      it('sends error event after partial stream data', async () => {
+        const response = await request(app.getHttpServer())
+          .get('/stream/partial-then-error')
+          .expect(200);
+
+        expect(response.text).toContain('data: {"chunk":1}');
+        expect(response.text).toContain('event: error');
+        expect(response.text).toContain('data: application-error');
+        expect(response.text).not.toContain('mid-stream failure');
+        expect(response.text).not.toContain('internal details');
+      });
     });
   });
 });

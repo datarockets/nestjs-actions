@@ -1,8 +1,21 @@
+import { HttpException, Logger } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { Request, Response as ExpressResponse } from 'express';
+import { z } from 'zod';
 import { runBeforeHooks } from '../core/before.decorator';
 import { Response } from '../core/response';
 import type { ActionClass } from '../core/types';
+
+const logger = new Logger('SseStream');
+
+const STATUS_CODES: Record<number, string> = {
+  400: 'bad-request',
+  401: 'unauthorized',
+  403: 'forbidden',
+  404: 'not-found',
+  422: 'input-error',
+  500: 'application-error',
+};
 
 export async function executeActionRequest(
   ActionClass: ActionClass,
@@ -55,7 +68,13 @@ function resolveResponse(
     return response.body;
   }
 
-  res.json(response.body ?? {});
+  const body = response.body ?? toErrorBody(response.status);
+  res.json(body);
+}
+
+function toErrorBody(status: number): { code: string } | undefined {
+  const code = STATUS_CODES[status];
+  return code ? { code } : undefined;
 }
 
 async function streamSseResponse(
@@ -91,14 +110,31 @@ async function streamSseResponse(
     }
   } catch (error) {
     if (!res.writableEnded) {
-      const message = error instanceof Error ? error.message : String(error);
-      res.write(formatSseMessage({ event: 'error', data: message }));
+      const code = sanitizeError(error);
+      res.write(formatSseMessage({ event: 'error', data: code }));
     }
   }
 
   if (!res.writableEnded) {
     res.end();
   }
+}
+
+function sanitizeError(error: unknown): string {
+  if (error instanceof z.ZodError) {
+    return 'input-error';
+  }
+
+  if (error instanceof HttpException) {
+    const status = error.getStatus();
+    if (status === 500) {
+      logger.error(error);
+    }
+    return STATUS_CODES[status] || 'application-error';
+  }
+
+  logger.error(error);
+  return 'application-error';
 }
 
 function formatSseMessage(event: unknown) {
