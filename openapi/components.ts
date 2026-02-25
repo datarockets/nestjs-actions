@@ -30,24 +30,13 @@ export function buildComponents(
     if (!schema) continue;
     schemas[schemaId] = schema;
 
-    const raw = JSON.stringify(schema);
-    const refPattern = /"\$ref"\s*:\s*"([^"#][^"]*)"/g;
-    let match;
-    while ((match = refPattern.exec(raw)) !== null) {
-      queue.push(match[1]);
-    }
+    collectRefs(schema, queue);
   }
 
   for (const [id, schema] of Object.entries(schemas)) {
-    const raw = JSON.stringify(schema);
-    const fixed = raw.replace(
-      /"\$ref"\s*:\s*"([^"#][^"]*)"/g,
-      '"$ref":"#/components/schemas/$1"',
-    );
-    const parsed = JSON.parse(fixed) as Record<string, unknown>;
-    delete parsed['$schema'];
-    delete parsed['id'];
-    schemas[id] = parsed;
+    rewriteRefs(schema);
+    delete schema['$schema'];
+    delete schema['id'];
   }
 
   if (Object.keys(schemas).length > 0) {
@@ -59,4 +48,25 @@ export function buildComponents(
   }
 
   return components;
+}
+
+function collectRefs(obj: unknown, refs: string[]): void {
+  if (typeof obj !== 'object' || obj === null) return;
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === '$ref' && typeof value === 'string' && !value.startsWith('#')) {
+      refs.push(value);
+    } else {
+      collectRefs(value, refs);
+    }
+  }
+}
+
+function rewriteRefs(obj: Record<string, unknown>): void {
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === '$ref' && typeof value === 'string' && !value.startsWith('#')) {
+      obj[key] = `#/components/schemas/${value}`;
+    } else if (typeof value === 'object' && value !== null) {
+      rewriteRefs(value as Record<string, unknown>);
+    }
+  }
 }
