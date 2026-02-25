@@ -11,6 +11,7 @@ export { Response } from './response';
 export type {
   ActionClass,
   ActionMeta,
+  ActionMethod,
   ActionOptions,
   BeforeOptions,
   OpenApiResponses,

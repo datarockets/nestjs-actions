@@ -1,5 +1,5 @@
 export { Action } from './core/action.decorator';
-export type { ActionOptions } from './core/types';
+export type { ActionMethod, ActionOptions } from './core/types';
 export { Before } from './core/before.decorator';
 export type { SecurityRequirement } from './core/types';
 export { BaseAction } from './core/base-action';

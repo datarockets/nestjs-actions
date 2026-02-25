@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import {
   ActionMeta,
+  ActionMethod,
   ActionOptions,
   OpenApiResponses,
   SecurityRequirement,
@@ -54,7 +55,7 @@ export function Action(options: ActionOptions): ClassDecorator {
 
 export function getActionMeta(target: Function): ActionMeta {
   return {
-    method: (Reflect.getMetadata(ACTION_METHOD_KEY, target) as string) || 'GET',
+    method: (Reflect.getMetadata(ACTION_METHOD_KEY, target) as ActionMethod) || 'GET',
     path: (Reflect.getMetadata(ACTION_PATH_KEY, target) as string) || '',
     abstract:
       (Reflect.getMetadata(ACTION_ABSTRACT_KEY, target) as boolean) || false,

@@ -1,4 +1,4 @@
-import { Controller, Delete, Get, Patch, Post, Req, Res } from '@nestjs/common';
+import { Controller, Delete, Get, Patch, Post, Put, Req, Res } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { Request, Response as ExpressResponse } from 'express';
 import type { ActionClass, ActionMeta } from '../core/types';
@@ -7,6 +7,7 @@ import { executeActionRequest } from './execute-action';
 const METHOD_DECORATORS: Record<string, (path?: string) => MethodDecorator> = {
   GET: Get,
   POST: Post,
+  PUT: Put,
   PATCH: Patch,
   DELETE: Delete,
 };

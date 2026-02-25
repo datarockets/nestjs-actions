@@ -49,6 +49,8 @@ export class CreateAction extends BaseAction {
 }
 ```
 
+The `method` option accepts `'GET'`, `'POST'`, `'PUT'`, `'PATCH'`, `'DELETE'`, or `'SSE'`. It defaults to `'GET'` when omitted. The type is exported as `ActionMethod`.
+
 However, unless you need to do advanced things like streaming, it is encouraged to use a Response object:
 
 ```ts
@@ -132,6 +134,7 @@ src/api/
       index.ts            -- exports * from actions, exports * as messages from messages
       show.action.ts      -- { method: "GET", path: ":id" }
       update.action.ts    -- { method: "PATCH", path: ":id" }
+      replace.action.ts   -- { method: "PUT", path: ":id" }
       delete.action.ts    -- { method: "DELETE", path: ":id" }
     settings/
       billing/
@@ -161,6 +164,7 @@ POST   /threads
 GET    /threads
 GET    /threads/:id
 PATCH  /threads/:id
+PUT    /threads/:id
 DELETE /threads/:id
 POST   /threads/:thread_id/messages
 GET    /threads/:thread_id/messages
