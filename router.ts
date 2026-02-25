@@ -1,16 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Patch,
-  Delete,
-  Sse,
-  Req,
-  Res,
-} from '@nestjs/common';
-import { ModuleRef } from '@nestjs/core';
-import { Request, Response as ExpressResponse } from 'express';
-import { getActionMeta, isActionClass, ActionMeta } from './action.decorator';
+import { getActionMeta, isActionClass } from './action.decorator';
 import { BaseAction } from './base-action';
 import { buildSpec } from './openapi/builder';
 import type {
@@ -18,8 +6,7 @@ import type {
   SpecEntry,
   SpecOptions,
 } from './openapi/types';
-import { Response } from './response';
-import { runBeforeHooks } from './before.decorator';
+import { createControllerForAction } from './runtime/create-controller';
 import { singularize } from './singularize';
 
 type ActionModule = Record<string, any>;
@@ -41,13 +28,6 @@ interface RouteNode {
   children?: RouteNode[];
 }
 
-const METHOD_DECORATORS: Record<string, (path?: string) => MethodDecorator> = {
-  GET: Get,
-  POST: Post,
-  PATCH: Patch,
-  DELETE: Delete,
-};
-
 function extractActions(module: ActionModule): (new () => BaseAction)[] {
   return Object.values(module).filter(
     isActionClass,
@@ -63,80 +43,6 @@ function routeNameFromPath(path: string): string {
 
 function toOpenApiPath(path: string): string {
   return '/' + path.replace(/:(\w+)/g, '{$1}');
-}
-
-function createControllerForAction(
-  ActionClass: new () => BaseAction,
-  basePath: string,
-  meta: ActionMeta,
-) {
-  const isSse = meta.method.toUpperCase() === 'SSE';
-
-  class ActionController {
-    constructor(private readonly moduleRef: ModuleRef) {}
-
-    async handle(req: Request, res: ExpressResponse) {
-      const action = new ActionClass();
-      action.request = req;
-      action.response = res;
-      action.moduleRef = this.moduleRef;
-
-      const beforeResult = await runBeforeHooks(action);
-      if (beforeResult instanceof Response) {
-        res.status(beforeResult.status);
-        return beforeResult.body;
-      }
-
-      const result = await action.exec();
-      if (result instanceof Response) {
-        res.status(result.status);
-        return result.body;
-      }
-      return result;
-    }
-
-    handleSse(req: Request) {
-      const action = new ActionClass();
-      action.request = req;
-      action.moduleRef = this.moduleRef;
-
-      return action.exec();
-    }
-  }
-
-  const routeName = routeNameFromPath(basePath);
-  const handlerName = isSse ? 'handleSse' : 'handle';
-  Object.defineProperty(ActionController, 'name', {
-    value: `${routeName}.${ActionClass.name}`,
-  });
-
-  Reflect.defineMetadata('design:paramtypes', [ModuleRef], ActionController);
-  Controller(basePath)(ActionController);
-
-  const descriptor = Object.getOwnPropertyDescriptor(
-    ActionController.prototype,
-    handlerName,
-  )!;
-
-  if (isSse) {
-    Sse(meta.path || undefined)(
-      ActionController.prototype,
-      handlerName,
-      descriptor,
-    );
-    Req()(ActionController.prototype, handlerName, 0);
-  } else {
-    const methodDec = METHOD_DECORATORS[meta.method.toUpperCase()] || Get;
-    methodDec(meta.path || undefined)(
-      ActionController.prototype,
-      handlerName,
-      descriptor,
-    );
-    Req()(ActionController.prototype, handlerName, 0);
-    Res({ passthrough: true })(ActionController.prototype, handlerName, 1);
-  }
-
-  return ActionController;
 }
 
 function routePath(
@@ -188,12 +94,12 @@ function create(routes: RouteNode[], actionsMap?: ActionModule) {
         for (const ActionClass of actions) {
           const meta = getActionMeta(ActionClass);
           if (meta.abstract) continue;
+          const routeName = routeNameFromPath(fullPath);
           controllers.push(
-            createControllerForAction(ActionClass, fullPath, meta),
+            createControllerForAction(ActionClass, fullPath, meta, routeName),
           );
 
           const actionPath = meta.path ? `${fullPath}/${meta.path}` : fullPath;
-          const routeName = routeNameFromPath(fullPath);
           const name = ActionClass.name.replace(/Action$/, '');
           const operationId = routeName ? `${routeName}.${name}` : name;
 

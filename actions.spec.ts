@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
+import { from } from 'rxjs';
 import { App } from 'supertest/types';
 import { z } from 'zod';
 import {
@@ -236,6 +237,93 @@ describe('router', () => {
       return request(app.getHttpServer())
         .patch('/settings/:setting_id/billing/1')
         .expect(404);
+    });
+  });
+
+  describe('sse runtime', () => {
+    let app: INestApplication<App>;
+    let sawResponseInBefore = false;
+
+    @Action({ abstract: true })
+    abstract class ProtectedSseAction extends BaseAction {
+      @Before()
+      authenticate() {
+        sawResponseInBefore = Boolean(this.response);
+        if (!this.headers['authorization']) {
+          return new Response({ status: 401 });
+        }
+      }
+    }
+
+    @Action({ method: 'SSE' })
+    class StreamAction extends ProtectedSseAction {
+      exec() {
+        return from([{ data: { ok: true } }]);
+      }
+    }
+
+    @Action({ method: 'SSE', path: 'action-response' })
+    class ActionResponseStreamAction extends BaseAction {
+      exec() {
+        return new Response({ status: 202, body: { ok: true } });
+      }
+    }
+
+    beforeAll(async () => {
+      const result = router.create([
+        router.path('stream', {
+          to: { StreamAction, ActionResponseStreamAction },
+        }),
+      ]);
+      app = await createApp(result.controllers());
+    });
+
+    beforeEach(() => {
+      sawResponseInBefore = false;
+    });
+
+    afterAll(() => app.close());
+
+    it('runs before hooks for SSE actions', () => {
+      return request(app.getHttpServer()).get('/stream').expect(401);
+    });
+
+    it('returns json response when SSE before hook short-circuits', () => {
+      return request(app.getHttpServer())
+        .get('/stream')
+        .expect(401)
+        .expect('Content-Type', /application\/json/)
+        .expect({});
+    });
+
+    it('assigns response on SSE action instances', async () => {
+      await request(app.getHttpServer()).get('/stream').expect(401);
+      expect(sawResponseInBefore).toBe(true);
+    });
+
+    it('returns json response when SSE action returns Response', () => {
+      return request(app.getHttpServer())
+        .get('/stream/action-response')
+        .expect(202)
+        .expect('Content-Type', /application\/json/)
+        .expect({ ok: true });
+    });
+
+    it('keeps SSE content type when action returns Observable', () => {
+      return request(app.getHttpServer())
+        .get('/stream')
+        .set('authorization', 'Bearer token')
+        .expect(200)
+        .expect('Content-Type', /text\/event-stream/);
+    });
+
+    it('streams SSE events when action returns Observable', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/stream')
+        .set('authorization', 'Bearer token')
+        .expect(200);
+
+      expect(response.text).toContain('data: {"ok":true}');
     });
   });
 
@@ -1035,9 +1123,7 @@ describe('router', () => {
       ]);
       const spec = result.spec();
 
-      expect(spec.paths['/override']?.get?.security).toEqual([
-        { apiKey: [] },
-      ]);
+      expect(spec.paths['/override']?.get?.security).toEqual([{ apiKey: [] }]);
     });
 
     it('child @Before security overrides parent @Before security', () => {
@@ -1070,9 +1156,7 @@ describe('router', () => {
       ]);
       const spec = result.spec();
 
-      expect(spec.paths['/child-sec']?.get?.security).toEqual([
-        { apiKey: [] },
-      ]);
+      expect(spec.paths['/child-sec']?.get?.security).toEqual([{ apiKey: [] }]);
     });
 
     it('omits security when none is defined', () => {
