@@ -23,68 +23,13 @@ export function operationResponses(
   const beforeResponses = getBeforeHookResponses(action);
   const actionResponses = getActionMeta(actionClass).openapi?.responses;
 
+  const responseItemSchema = isSse
+    ? actionWithSchemas.ResponseItem
+    : undefined;
+
   let staticResponse: OpenApiResponses | undefined;
-
-  if (isSse) {
-    const responseItemSchema = actionWithSchemas.ResponseItem;
-
-    if (responseItemSchema) {
-      const itemSchemaSpec = convertSchema(responseItemSchema);
-      const referencedSchemaIds: string[] = [...itemSchemaSpec.referencedIds];
-
-      const mergedResponses = [
-        ...beforeResponses,
-        ...(actionResponses ? [actionResponses] : []),
-      ].reduce(
-        (acc, responses) => ({ ...acc, ...responses }),
-        {} as OpenApiResponses,
-      );
-
-      if (hasValidationSchemas(actionClass) && !('422' in mergedResponses)) {
-        mergedResponses['422'] = InputError.Schema;
-      }
-
-      const responses: Record<string, SpecResponse> = {};
-
-      for (const [status, schema] of Object.entries(mergedResponses)) {
-        const schemaSpec = convertSchema(schema);
-        referencedSchemaIds.push(...schemaSpec.referencedIds);
-
-        const response: SpecResponse = {
-          content: {
-            'application/json': {
-              schema: schemaSpec.schema,
-            },
-          },
-        };
-
-        if (schemaSpec.description) {
-          response.description = schemaSpec.description;
-        }
-
-        responses[status] = response;
-      }
-
-      const sseResponse: SpecResponse = {
-        content: {
-          'text/event-stream': {
-            schema: { type: 'string' },
-            itemSchema: itemSchemaSpec.schema,
-          },
-        },
-      };
-
-      if (itemSchemaSpec.description) {
-        sseResponse.description = itemSchemaSpec.description;
-      }
-
-      responses['200'] = sseResponse;
-
-      return { responses, referencedSchemaIds };
-    }
-  } else {
+  if (!isSse) {
     const staticResponseSchema = actionWithSchemas.Response;
-
     if (staticResponseSchema) {
       const meta = z.globalRegistry.get(staticResponseSchema) as
         | { openapi?: { response?: { status?: number } } }
@@ -108,7 +53,7 @@ export function operationResponses(
   }
 
   const entries = Object.entries(mergedResponses);
-  if (entries.length === 0) {
+  if (entries.length === 0 && !responseItemSchema) {
     return {
       responses: {},
       referencedSchemaIds: [],
@@ -117,6 +62,7 @@ export function operationResponses(
 
   const referencedSchemaIds: string[] = [];
   const responses: Record<string, SpecResponse> = {};
+
   for (const [status, schema] of entries) {
     const schemaSpec = convertSchema(schema);
     referencedSchemaIds.push(...schemaSpec.referencedIds);
@@ -134,6 +80,26 @@ export function operationResponses(
     }
 
     responses[status] = response;
+  }
+
+  if (responseItemSchema) {
+    const itemSchemaSpec = convertSchema(responseItemSchema);
+    referencedSchemaIds.push(...itemSchemaSpec.referencedIds);
+
+    const sseResponse: SpecResponse = {
+      content: {
+        'text/event-stream': {
+          schema: { type: 'string' },
+          itemSchema: itemSchemaSpec.schema,
+        },
+      },
+    };
+
+    if (itemSchemaSpec.description) {
+      sseResponse.description = itemSchemaSpec.description;
+    }
+
+    responses['200'] = sseResponse;
   }
 
   return {
