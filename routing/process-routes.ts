@@ -3,7 +3,7 @@ import { BaseAction } from '../core/base-action';
 import type { SpecEntry } from '../openapi/types';
 import type { ActionControllerClass } from '../runtime/create-controller';
 import { createControllerForAction } from '../runtime/create-controller';
-import { singularize } from '../singularize';
+import { singularize } from '../utils/singularize';
 import type { ActionModule, RouteNode } from './types';
 
 interface ProcessedRoutes {
