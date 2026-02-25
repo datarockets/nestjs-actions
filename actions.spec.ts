@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { from } from 'rxjs';
+
 import { App } from 'supertest/types';
 import { z } from 'zod';
 import {
@@ -257,8 +257,8 @@ describe('router', () => {
 
     @Action({ method: 'SSE' })
     class StreamAction extends ProtectedSseAction {
-      exec() {
-        return from([{ data: { ok: true } }]);
+      async *exec() {
+        yield { data: { ok: true } };
       }
     }
 
@@ -309,7 +309,7 @@ describe('router', () => {
         .expect({ ok: true });
     });
 
-    it('keeps SSE content type when action returns Observable', () => {
+    it('keeps SSE content type when action returns async generator', () => {
       return request(app.getHttpServer())
         .get('/stream')
         .set('authorization', 'Bearer token')
@@ -317,7 +317,7 @@ describe('router', () => {
         .expect('Content-Type', /text\/event-stream/);
     });
 
-    it('streams SSE events when action returns Observable', async () => {
+    it('streams SSE events when action returns async generator', async () => {
       const response = await request(app.getHttpServer())
         .get('/stream')
         .set('authorization', 'Bearer token')

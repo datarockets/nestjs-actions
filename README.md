@@ -604,23 +604,20 @@ api.spec({ prefix: '/api/v1' });
 
 ## Server-Sent Events (SSE)
 
-Use `method: 'SSE'` to create an SSE endpoint. The `exec` method should return an `Observable<MessageEvent>`:
+Use `method: 'SSE'` to create an SSE endpoint. The `exec` method should be an async generator that yields events:
 
 ```ts
 import { Action, BaseAction } from 'src/lib/actions';
-import { Observable, MessageEvent } from 'rxjs';
 
 @Action({ method: 'SSE' })
 export class StreamAction extends BaseAction {
-  exec(): Observable<MessageEvent> {
-    return new Observable((subscriber) => {
-      subscriber.next({ data: { hello: 'world' } });
-    });
+  async *exec() {
+    yield { data: { hello: 'world' } };
   }
 }
 ```
 
-SSE actions use NestJS's `@Sse()` decorator under the hood. The framework manages the response — you only need to return the Observable. SSE routes appear as `GET` in the generated OpenAPI spec.
+The framework manages the response — it iterates the generator, formats each yielded value as an SSE message, and ends the response when the generator returns. When the client disconnects, the generator is stopped via `generator.return()`, which triggers any `finally` blocks for cleanup. SSE routes appear as `GET` in the generated OpenAPI spec.
 
 ### SSE Response Schema
 
@@ -634,10 +631,8 @@ export class StreamAction extends BaseAction {
     price: z.string(),
   });
 
-  exec(): Observable<MessageEvent> {
-    return new Observable((subscriber) => {
-      subscriber.next({ data: { symbol: 'AAPL', price: '100.25' } });
-    });
+  async *exec() {
+    yield { data: { symbol: 'AAPL', price: '100.25' } };
   }
 }
 ```

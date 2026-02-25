@@ -1,6 +1,5 @@
 import { ModuleRef } from '@nestjs/core';
 import { Request, Response as ExpressResponse } from 'express';
-import { Observable, isObservable } from 'rxjs';
 import { runBeforeHooks } from '../before.decorator';
 import { BaseAction } from '../base-action';
 import { Response } from '../response';
@@ -31,12 +30,18 @@ export async function executeActionRequest(
     return resolveResponse(result, res, isSse);
   }
 
-  if (isSse && isObservable(result)) {
-    streamSseResponse(result, req, res);
+  if (isSse && isAsyncIterable(result)) {
+    await streamSseResponse(result, req, res);
     return;
   }
 
   return result;
+}
+
+function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
+  return (
+    value != null && typeof (value as any)[Symbol.asyncIterator] === 'function'
+  );
 }
 
 function resolveResponse(
@@ -53,8 +58,8 @@ function resolveResponse(
   res.json(response.body ?? {});
 }
 
-function streamSseResponse(
-  stream: Observable<unknown>,
+async function streamSseResponse(
+  iterable: AsyncIterable<unknown>,
   req: Request,
   res: ExpressResponse,
 ) {
@@ -70,26 +75,30 @@ function streamSseResponse(
 
   res.flushHeaders();
 
-  const subscription = stream.subscribe({
-    next: (event) => {
-      res.write(formatSseMessage(event));
-    },
-    error: (error) => {
-      const message = error instanceof Error ? error.message : String(error);
-      res.write(formatSseMessage({ event: 'error', data: message }));
-      res.end();
-    },
-    complete: () => {
-      res.end();
-    },
-  });
+  const iterator = iterable[Symbol.asyncIterator]();
 
   req.on('close', () => {
-    subscription.unsubscribe();
+    iterator.return?.(undefined);
     if (!res.writableEnded) {
       res.end();
     }
   });
+
+  try {
+    for await (const event of { [Symbol.asyncIterator]: () => iterator }) {
+      if (res.writableEnded) break;
+      res.write(formatSseMessage(event));
+    }
+  } catch (error) {
+    if (!res.writableEnded) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.write(formatSseMessage({ event: 'error', data: message }));
+    }
+  }
+
+  if (!res.writableEnded) {
+    res.end();
+  }
 }
 
 function formatSseMessage(event: unknown) {
