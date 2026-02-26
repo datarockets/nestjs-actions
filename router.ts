@@ -6,6 +6,12 @@ import type { ActionModule, RouteNode } from './routing/types';
 
 export type Spec = OpenApiSpec;
 
+/**
+ * Creates a router instance from a route tree.
+ * Processes the route nodes into NestJS controllers and OpenAPI spec entries.
+ * When `actionsMap` is provided, the router auto-traverses it by path key
+ * to resolve action modules without explicit `{ to: ... }` options.
+ */
 function create(routes: RouteNode[], actionsMap?: ActionModule) {
   const { controllers, specEntries } = processRoutes(routes, actionsMap);
 
@@ -20,6 +26,11 @@ function create(routes: RouteNode[], actionsMap?: ActionModule) {
   };
 }
 
+/**
+ * Top-level router orchestrator.
+ * Use `router.create()` to build controllers and spec from a route tree,
+ * `router.path()` and `router.resources()` to define route nodes.
+ */
 export const router = {
   create,
   path: routePath,

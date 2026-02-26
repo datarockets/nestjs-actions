@@ -15,6 +15,12 @@ const ACTION_OPENAPI_SECURITY_KEY = 'action:openapi:security';
 
 const MEMOIZED_GETTERS = ['params', 'query', 'body'];
 
+/**
+ * Class decorator that registers a class as an action endpoint.
+ * Stores HTTP method, path, and OpenAPI metadata via reflect-metadata.
+ * Automatically memoizes `params`, `query`, and `body` getters defined on the
+ * prototype so each getter runs at most once per request instance.
+ */
 export function Action(options: ActionOptions): ClassDecorator {
   return (target) => {
     Reflect.defineMetadata(ACTION_METHOD_KEY, options.method || 'GET', target);
@@ -55,7 +61,8 @@ export function Action(options: ActionOptions): ClassDecorator {
 
 export function getActionMeta(target: Function): ActionMeta {
   return {
-    method: (Reflect.getMetadata(ACTION_METHOD_KEY, target) as ActionMethod) || 'GET',
+    method:
+      (Reflect.getMetadata(ACTION_METHOD_KEY, target) as ActionMethod) || 'GET',
     path: (Reflect.getMetadata(ACTION_PATH_KEY, target) as string) || '',
     abstract:
       (Reflect.getMetadata(ACTION_ABSTRACT_KEY, target) as boolean) || false,

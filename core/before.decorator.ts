@@ -8,6 +8,11 @@ const BEFORE_HOOK_OPENAPI_RESPONSES_KEY =
   'action:before-hook:openapi:responses';
 const BEFORE_HOOK_OPENAPI_SECURITY_KEY = 'action:before-hook:openapi:security';
 
+/**
+ * Method decorator that marks a method as a before hook.
+ * Before hooks run in parent-first order before `exec()`.
+ * Optionally attaches OpenAPI response and security metadata to the hook.
+ */
 export function Before(options?: BeforeOptions): MethodDecorator {
   return (target, propertyKey) => {
     const hooks: string[] =
@@ -47,6 +52,11 @@ export function getBeforeHooks(instance: object): string[] {
   return chain.flat();
 }
 
+/**
+ * Collects OpenAPI response schemas from all `@Before()` hooks in the prototype chain.
+ * Unlike security, responses use "collect all" semantics -- every hook's responses
+ * are merged into the final operation spec.
+ */
 export function getBeforeHookResponses(
   instance: object,
 ): Record<number, z.ZodType>[] {
@@ -79,6 +89,11 @@ export function getBeforeHookResponses(
   return responses.flat();
 }
 
+/**
+ * Resolves the OpenAPI security requirement for the instance's before hooks.
+ * Uses "first wins" semantics: returns the security from the first hook
+ * (in parent-first order) that declares one, ignoring the rest.
+ */
 export function getBeforeHookSecurity(
   instance: object,
 ): SecurityRequirement[] | undefined {
@@ -105,6 +120,12 @@ export function getBeforeHookSecurity(
   return undefined;
 }
 
+/**
+ * Executes all `@Before()` hooks on the action instance in parent-first order.
+ * If any hook returns a {@link Response}, execution short-circuits and that
+ * response is returned immediately -- `exec()` will not be called.
+ * Returns `void` when all hooks pass.
+ */
 export async function runBeforeHooks(
   instance: object,
 ): Promise<Response | void> {

@@ -28,6 +28,12 @@ function toOpenApiPath(path: string): string {
   return '/' + path.replace(/:(\w+)/g, '{$1}');
 }
 
+/**
+ * Recursively visits a route tree, resolving action modules and producing
+ * NestJS controller classes and OpenAPI spec entries. For `resources` nodes,
+ * child paths are nested under a singularized `:id` parameter.
+ * When `actionsMap` is provided, modules are resolved by path key automatically.
+ */
 export function processRoutes(
   nodes: RouteNode[],
   actionsMap?: ActionModule,

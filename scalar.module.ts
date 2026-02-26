@@ -9,6 +9,13 @@ export interface ScalarOptions {
   scalar?: Record<string, unknown>;
 }
 
+/**
+ * NestJS dynamic module that serves an interactive Scalar API reference page
+ * and the raw OpenAPI JSON spec. Loaded from CDN at runtime.
+ *
+ * Exposes `GET /<docsPath>` (default `docs`) for the UI and
+ * `GET /<specPath>` (default `spec.json`) for the JSON spec.
+ */
 @Module({})
 export class ScalarModule {
   static forRoot(options: ScalarOptions): DynamicModule {

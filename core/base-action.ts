@@ -1,6 +1,15 @@
 import { ModuleRef } from '@nestjs/core';
 import { Request, Response as ExpressResponse } from 'express';
 
+/**
+ * Abstract base class for all action endpoints.
+ *
+ * The `request`, `response`, and `moduleRef` properties are assigned
+ * post-construction by the runtime (see `executeActionRequest`).
+ * The `params`, `query`, and `body` getters are passthrough defaults;
+ * subclasses typically override them with parsing logic, and the
+ * {@link Action} decorator memoizes the overridden getters automatically.
+ */
 export abstract class BaseAction {
   request: Request;
   response: ExpressResponse;

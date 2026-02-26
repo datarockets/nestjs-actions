@@ -23,9 +23,7 @@ export function operationResponses(
   const beforeResponses = getBeforeHookResponses(action);
   const actionResponses = getActionMeta(actionClass).openapi?.responses;
 
-  const responseItemSchema = isSse
-    ? actionWithSchemas.ResponseItem
-    : undefined;
+  const responseItemSchema = isSse ? actionWithSchemas.ResponseItem : undefined;
 
   let staticResponse: OpenApiResponses | undefined;
   if (!isSse) {

@@ -1,4 +1,13 @@
-import { Controller, Delete, Get, Patch, Post, Put, Req, Res } from '@nestjs/common';
+import {
+  Controller,
+  Delete,
+  Get,
+  Patch,
+  Post,
+  Put,
+  Req,
+  Res,
+} from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { Request, Response as ExpressResponse } from 'express';
 import type { ActionClass, ActionMeta } from '../core/types';
@@ -16,6 +25,13 @@ export type ActionControllerClass = new (moduleRef: ModuleRef) => {
   handle(req: Request, res: ExpressResponse): Promise<unknown>;
 };
 
+/**
+ * Dynamically generates a NestJS controller class for a single action.
+ * Applies `@Controller`, HTTP method decorators (`@Get`, `@Post`, etc.),
+ * and parameter decorators (`@Req`, `@Res`) at runtime so NestJS can
+ * discover and route to the action without hand-written controller boilerplate.
+ * SSE actions use `@Res()` (no passthrough) to enable manual streaming.
+ */
 export function createControllerForAction(
   ActionClass: ActionClass,
   basePath: string,

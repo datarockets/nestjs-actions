@@ -17,6 +17,13 @@ const STATUS_CODES: Record<number, string> = {
   500: 'application-error',
 };
 
+/**
+ * Executes the full request lifecycle for an action:
+ * 1. Instantiates the action and injects `request`, `response`, `moduleRef`.
+ * 2. Runs `@Before()` hooks -- short-circuits if any returns a `Response`.
+ * 3. Calls `exec()` and handles the result: `Response` objects set the status,
+ *    async iterables are streamed as SSE, plain values are returned to NestJS.
+ */
 export async function executeActionRequest(
   ActionClass: ActionClass,
   moduleRef: ModuleRef,

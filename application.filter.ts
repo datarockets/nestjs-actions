@@ -9,6 +9,12 @@ import { Response } from 'express';
 import { z } from 'zod';
 import { InputError } from './responses/input-error';
 
+/**
+ * Global NestJS exception filter for action endpoints.
+ * Converts `ZodError` into a 422 `InputError` response with structured
+ * validation details. Other `HttpException` types are mapped to their
+ * status code; unrecognized errors produce a 500 with logging.
+ */
 @Catch()
 export class ApplicationFilter implements ExceptionFilter {
   private readonly logger = new Logger(ApplicationFilter.name);
