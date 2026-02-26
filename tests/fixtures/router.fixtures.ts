@@ -66,12 +66,26 @@ export class MessageCreateAction extends BaseAction {
 
 export const messages = { MessageIndexAction, MessageCreateAction };
 
+// NestJS default TestingLogger silences all log levels except `error`.
+// We override it to also silence errors, since test fixtures intentionally
+// trigger them to verify error-handling behavior (e.g. SSE error sanitization).
+const silentLogger = {
+  log() {},
+  error() {},
+  warn() {},
+  debug() {},
+  verbose() {},
+  fatal() {},
+};
+
 export async function createTestApp(
   controllers: ActionControllerClass[],
 ): Promise<INestApplication<App>> {
   const moduleRef = await Test.createTestingModule({
     controllers,
-  }).compile();
+  })
+    .setLogger(silentLogger)
+    .compile();
 
   const app = moduleRef.createNestApplication();
   await app.init();
