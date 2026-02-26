@@ -46,6 +46,7 @@ export function createControllerForAction(
     async handle(req: Request, res: ExpressResponse) {
       return executeActionRequest(ActionClass, this.moduleRef, req, res, {
         isSse,
+        heartbeatIntervalMs: isSse ? meta.sse?.heartbeatInterval : undefined,
       });
     }
   }

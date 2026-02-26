@@ -9,6 +9,9 @@ export interface ActionOptions {
   method?: ActionMethod;
   path?: string;
   abstract?: boolean;
+  sse?: {
+    heartbeatInterval?: number;
+  };
   openapi?: {
     responses?: OpenApiResponses;
     security?: SecurityRequirement[];
@@ -19,6 +22,9 @@ export interface ActionMeta {
   method: ActionMethod;
   path: string;
   abstract: boolean;
+  sse?: {
+    heartbeatInterval?: number;
+  };
   openapi?: {
     responses?: OpenApiResponses;
     security?: SecurityRequirement[];

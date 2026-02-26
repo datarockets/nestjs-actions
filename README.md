@@ -623,6 +623,26 @@ export class StreamAction extends BaseAction {
 
 The framework manages the response — it iterates the generator, formats each yielded value as an SSE message, and ends the response when the generator returns. When the client disconnects, the generator is stopped via `generator.return()`, which triggers any `finally` blocks for cleanup. SSE routes appear as `GET` in the generated OpenAPI spec.
 
+### Heartbeat
+
+SSE connections automatically receive a heartbeat comment (`:heartbeat`) every 30 seconds to prevent proxy/load-balancer idle timeouts. The heartbeat is an SSE comment and is invisible to clients — it does not trigger `onmessage` handlers. No action-level configuration is needed; the framework handles it transparently.
+
+The interval can be customized per action via the `sse.heartbeatInterval` option (in milliseconds):
+
+```ts
+@Action({
+  method: 'SSE',
+  sse: {
+    heartbeatInterval: 15_000,
+  },
+})
+export class StreamAction extends BaseAction {
+  async *exec() {
+    yield { data: { hello: 'world' } };
+  }
+}
+```
+
 ### SSE Response Schema
 
 Define a `static ResponseItem` zod schema to describe the shape of each individual event in the stream. The generated spec uses the OpenAPI 3.2 `itemSchema` keyword under `text/event-stream`:

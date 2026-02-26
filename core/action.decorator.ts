@@ -10,6 +10,7 @@ import {
 const ACTION_METHOD_KEY = 'action:method';
 const ACTION_PATH_KEY = 'action:path';
 const ACTION_ABSTRACT_KEY = 'action:abstract';
+const ACTION_SSE_HEARTBEAT_INTERVAL_KEY = 'action:sse:heartbeatInterval';
 const ACTION_OPENAPI_RESPONSES_KEY = 'action:openapi:responses';
 const ACTION_OPENAPI_SECURITY_KEY = 'action:openapi:security';
 
@@ -30,6 +31,13 @@ export function Action(options: ActionOptions): ClassDecorator {
       options.abstract || false,
       target,
     );
+    if (options.sse?.heartbeatInterval !== undefined) {
+      Reflect.defineMetadata(
+        ACTION_SSE_HEARTBEAT_INTERVAL_KEY,
+        options.sse.heartbeatInterval,
+        target,
+      );
+    }
     Reflect.defineMetadata(
       ACTION_OPENAPI_RESPONSES_KEY,
       options.openapi?.responses,
@@ -66,6 +74,12 @@ export function getActionMeta(target: Function): ActionMeta {
     path: (Reflect.getMetadata(ACTION_PATH_KEY, target) as string) || '',
     abstract:
       (Reflect.getMetadata(ACTION_ABSTRACT_KEY, target) as boolean) || false,
+    sse: {
+      heartbeatInterval: Reflect.getMetadata(
+        ACTION_SSE_HEARTBEAT_INTERVAL_KEY,
+        target,
+      ) as number | undefined,
+    },
     openapi: {
       responses: Reflect.getMetadata(ACTION_OPENAPI_RESPONSES_KEY, target) as
         | OpenApiResponses

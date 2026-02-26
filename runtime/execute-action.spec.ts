@@ -1,3 +1,4 @@
+import http from 'http';
 import { INestApplication, NotFoundException } from '@nestjs/common';
 import request from 'supertest';
 import { z } from 'zod';
@@ -7,6 +8,60 @@ import { router } from '../router';
 import { createTestApp } from '../tests/fixtures/router.fixtures';
 
 describe('runtime/execute-action', () => {
+  describe('SSE heartbeat', () => {
+    let app: INestApplication;
+
+    @Action({ method: 'SSE', sse: { heartbeatInterval: 10 } })
+    class SlowStreamAction extends BaseAction {
+      static gate: { promise: Promise<void>; resolve: () => void };
+
+      async *exec() {
+        yield { data: { chunk: 1 } };
+        await SlowStreamAction.gate.promise;
+      }
+    }
+
+    beforeAll(async () => {
+      const result = router.create([
+        router.path('sse', { to: { SlowStreamAction } }),
+      ]);
+      app = await createTestApp(result.controllers());
+    });
+
+    afterAll(() => app.close());
+
+    beforeEach(() => {
+      let resolve!: () => void;
+      SlowStreamAction.gate = {
+        promise: new Promise<void>((r) => {
+          resolve = r;
+        }),
+        resolve,
+      };
+    });
+
+    it('sends heartbeat comments during idle periods', async () => {
+      const server = app.getHttpServer();
+      if (!server.listening) server.listen(0);
+      const address = server.address() as { port: number };
+
+      const body = await new Promise<string>((resolve) => {
+        let data = '';
+        http.get(`http://127.0.0.1:${address.port}/sse`, (res) => {
+          res.on('data', (chunk: Buffer) => {
+            data += chunk.toString();
+          });
+          res.on('end', () => resolve(data));
+        });
+
+        setTimeout(() => SlowStreamAction.gate.resolve(), 200);
+      });
+
+      expect(body).toContain(':heartbeat');
+      expect(body).toContain('data: {"chunk":1}');
+    });
+  });
+
   describe('SSE runtime', () => {
     let app: INestApplication;
     let sawResponseInBefore = false;

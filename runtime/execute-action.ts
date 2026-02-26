@@ -8,6 +8,8 @@ import type { ActionClass } from '../core/types';
 
 const logger = new Logger('SseStream');
 
+const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000;
+
 const STATUS_CODES: Record<number, string> = {
   400: 'bad-request',
   401: 'unauthorized',
@@ -29,7 +31,7 @@ export async function executeActionRequest(
   moduleRef: ModuleRef,
   req: Request,
   res: ExpressResponse,
-  options?: { isSse?: boolean },
+  options?: { isSse?: boolean; heartbeatIntervalMs?: number },
 ) {
   const isSse = options?.isSse ?? false;
 
@@ -49,7 +51,7 @@ export async function executeActionRequest(
   }
 
   if (isSse && isAsyncIterable(result)) {
-    await streamSseResponse(result, req, res);
+    await streamSseResponse(result, req, res, options?.heartbeatIntervalMs);
     return;
   }
 
@@ -84,10 +86,13 @@ function toErrorBody(status: number): { code: string } | undefined {
   return code ? { code } : undefined;
 }
 
+const SSE_HEARTBEAT = ':heartbeat\n\n';
+
 async function streamSseResponse(
   iterable: AsyncIterable<unknown>,
   req: Request,
   res: ExpressResponse,
+  heartbeatIntervalMs = DEFAULT_HEARTBEAT_INTERVAL_MS,
 ) {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader(
@@ -102,13 +107,28 @@ async function streamSseResponse(
   res.flushHeaders();
 
   const iterator = iterable[Symbol.asyncIterator]();
+  let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
+
+  const cleanup = () => {
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = undefined;
+    }
+  };
 
   req.on('close', () => {
+    cleanup();
     iterator.return?.(undefined);
     if (!res.writableEnded) {
       res.end();
     }
   });
+
+  heartbeatTimer = setInterval(() => {
+    if (!res.writableEnded) {
+      res.write(SSE_HEARTBEAT);
+    }
+  }, heartbeatIntervalMs);
 
   try {
     for await (const event of { [Symbol.asyncIterator]: () => iterator }) {
@@ -121,6 +141,8 @@ async function streamSseResponse(
       res.write(formatSseMessage({ event: 'error', data: code }));
     }
   }
+
+  cleanup();
 
   if (!res.writableEnded) {
     res.end();
