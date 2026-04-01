@@ -8,4 +8,3 @@ export { router } from './router';
 export { ScalarModule } from './scalar.module';
 export * from './application.filter';
 export * from './application.interceptor';
-
