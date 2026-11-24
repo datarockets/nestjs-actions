@@ -1,8 +1,20 @@
 See @README.md to understand how actions work.
 
+## Commands
+
+```sh
+pnpm install
+pnpm test     # jest
+pnpm build    # compiles src/ to dist/
+pnpm lint
+pnpm format
+```
+
 ## Entrypoints
 
-- Public exports: `index.ts`
+Paths below are relative to `src/`.
+
+- Public exports: `src/index.ts` (`@datarockets/nestjs-actions`) and `src/responses/index.ts` (`@datarockets/nestjs-actions/responses`)
 - Router orchestration: `router.ts`
 - Routing DSL + traversal: `routing/`
 - Runtime execution + controller wiring: `runtime/`

@@ -1,4 +1,23 @@
+# @datarockets/nestjs-actions
+
 Actions, a better way to define endpoint handlers in Nest.js applications.
+
+## Installation
+
+The package is not published to npm yet. Install it from GitHub:
+
+```sh
+pnpm add github:datarockets/nestjs-actions
+```
+
+The package builds itself on install (`prepare`), so pnpm has to be allowed to run its build script. pnpm allows git-hosted packages only by their exact spec, including the commit SHA. The first install fails and prints that spec; add it to `allowBuilds` in `pnpm-workspace.yaml` and install again:
+
+```yaml
+allowBuilds:
+  '<spec printed by pnpm>': true
+```
+
+Peer dependencies: `@nestjs/common`, `@nestjs/core`, `@nestjs/platform-express` (v11), `zod` (v4), `rxjs`, and `reflect-metadata`.
 
 ## Quick Start
 
@@ -6,7 +25,7 @@ An Action is a class that is responsible for handling HTTP requests in Nest.js a
 
 ```ts
 // src/api/actions/hello.action.ts
-import { Action, BaseAction } from 'src/lib/actions';
+import { Action, BaseAction } from '@datarockets/nestjs-actions';
 
 @Action({})
 export class HelloAction extends BaseAction {
@@ -54,7 +73,7 @@ The `method` option accepts `'GET'`, `'POST'`, `'PUT'`, `'PATCH'`, `'DELETE'`, o
 However, unless you need to do advanced things like streaming, it is encouraged to use a Response object:
 
 ```ts
-import { Action, BaseAction, Response } from 'src/lib/actions';
+import { Action, BaseAction, Response } from '@datarockets/nestjs-actions';
 
 @Action({
   method: 'POST',
@@ -75,7 +94,7 @@ export class CreateAction extends BaseAction {
 
 ```ts
 // src/api/api.module.ts
-import { router } from 'src/lib/actions';
+import { router } from '@datarockets/nestjs-actions';
 import { HelloAction } from './actions/hello/hello.action';
 import { CreateAction } from './actions/hello/create.action';
 
@@ -224,7 +243,7 @@ actions['settings']['billing'];
 Use the `@Before()` decorator to mark methods as before hooks. The framework discovers all `@Before()` methods across the class hierarchy and runs them in parent-first order. If any hook returns a `Response`, execution stops and that response is sent — the `exec` method won't be called.
 
 ```ts
-import { Action, Before, BaseAction, Response } from 'src/lib/actions';
+import { Action, Before, BaseAction, Response } from '@datarockets/nestjs-actions';
 import * as users from 'src/users';
 
 @Action({
@@ -261,7 +280,7 @@ Before hooks are most useful in combination with inheritance.
 
 ```ts
 // src/api/actions/api.action.ts
-import { Action, Before, BaseAction, Response } from 'src/lib/actions';
+import { Action, Before, BaseAction, Response } from '@datarockets/nestjs-actions';
 
 @Action({
   abstract: true,
@@ -289,7 +308,7 @@ export abstract class ApiAction extends BaseAction {
 
 ```ts
 // src/api/actions/threads/create.action.ts
-import { Action, Before } from 'src/lib/actions';
+import { Action, Before } from '@datarockets/nestjs-actions';
 import { ApiAction } from 'src/api/actions/api.action';
 import * as workspaces from 'src/workspaces';
 
@@ -353,7 +372,7 @@ It is possible to generate OpenAPI 3.2 spec for actions.
 You can specify reponses in `Action` and `Before` decorators:
 
 ```ts
-import { UnauthorizedError } from 'src/lib/actions/responses';
+import { UnauthorizedError } from '@datarockets/nestjs-actions/responses';
 
 @Action({})
 export abstract class ApiAction extends BaseAction {
@@ -515,7 +534,7 @@ This produces two query parameters: `page` (optional, `type: "number"`) and `lim
 Use the `openapi.security` option in `@Before` or `@Action` to declare security requirements on operations. The value follows the OpenAPI [Security Requirement Object](https://spec.openapis.org/oas/v3.1.0#security-requirement-object) format — an array of objects where each key is a scheme name and the value is a list of scopes:
 
 ```ts
-import { UnauthorizedError } from 'src/lib/actions/responses';
+import { UnauthorizedError } from '@datarockets/nestjs-actions/responses';
 
 @Action({ abstract: true })
 export abstract class ApiAction extends BaseAction {
@@ -572,7 +591,7 @@ api.spec({
 Serve an interactive API documentation page powered by Scalar (loaded from CDN). The spec is generated from your actions routes.
 
 ```ts
-import { ScalarModule } from 'src/lib/actions';
+import { ScalarModule } from '@datarockets/nestjs-actions';
 import { api } from './api/api.module';
 
 @Module({
@@ -611,7 +630,7 @@ api.spec({ prefix: '/api/v1' });
 Use `method: 'SSE'` to create an SSE endpoint. The `exec` method should be an async generator that yields events:
 
 ```ts
-import { Action, BaseAction } from 'src/lib/actions';
+import { Action, BaseAction } from '@datarockets/nestjs-actions';
 
 @Action({ method: 'SSE' })
 export class StreamAction extends BaseAction {
